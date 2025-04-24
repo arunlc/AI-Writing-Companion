@@ -238,8 +238,6 @@ function App() {
                   <Login onLogin={handleLogin} />
                   <div className="mt-4 text-center">
                     <p className="text-gray-600">
-              <div className="mt-4 text-center">
-                    <p className="text-gray-600">
                       Don't have an account?{' '}
                       <Link to="/register" className="text-indigo-600 hover:underline">
                         Sign up
