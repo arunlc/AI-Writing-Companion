@@ -91,8 +91,6 @@ const AnalysisResults = ({ analysis, title }) => {
             </span>
             <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
               {analysis.tone.sentiment}
-<span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-              {analysis.tone.sentiment}
             </span>
           </div>
           <p className="text-sm text-gray-600">
