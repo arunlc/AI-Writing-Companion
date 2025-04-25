@@ -40,9 +40,10 @@ router.get('/submissions', auth, async (req, res) => {
     console.log('Fetching submissions for user:', req.userId); // Debug log
     
     // Explicitly filter by authenticated user ID
+    // Increased limit from 10 to 50 to show more stories
     const submissions = await Submission.find({ userId: req.userId })
       .sort({ createdAt: -1 })
-      .limit(10);
+      .limit(50);
     
     console.log(`Found ${submissions.length} submissions for user ${req.userId}`); // Debug log
     
