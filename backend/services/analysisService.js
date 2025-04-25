@@ -389,7 +389,7 @@ async function detectAIContent(text) {
   } catch (error) {
     console.error('AI detection error with Claude:', error);
     // Fall back to basic implementation if Claude fails
-    return 5; // Default conservative score
+    return 50; // Default conservative score
   }
 }
 
