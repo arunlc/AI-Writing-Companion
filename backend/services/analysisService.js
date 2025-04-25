@@ -93,8 +93,20 @@ async function analyzeWriting(text, title = '') {
   }
 }
 
-// Grammar checking function (simplified for now)
+// Grammar checking function with Claude integration
 async function checkGrammar(text) {
+  try {
+    // Use Claude Haiku for grammar analysis
+    return await claudeService.checkGrammarWithClaude(text);
+  } catch (error) {
+    console.error('Grammar check error with Claude:', error);
+    // Fall back to basic implementation if Claude fails
+    return performBasicGrammarCheck(text);
+  }
+}
+
+// Fallback grammar checker
+function performBasicGrammarCheck(text) {
   // Basic error patterns to check
   const commonErrors = [
     { pattern: /\bi\b/g, correction: 'I', explanation: 'The pronoun "I" should always be capitalized.' },
@@ -129,6 +141,7 @@ async function checkGrammar(text) {
   return {
     errors,
     score,
+    summary: "Grammar analysis completed using basic checks.",
     correctedText: applyCorrectionToText(text, errors)
   };
 }
@@ -193,8 +206,20 @@ async function analyzeTone(text) {
   };
 }
 
-// Other analysis functions (simplified implementations)
+// Character analysis with Claude integration
 async function analyzeCharacters(text) {
+  try {
+    // Use Claude Haiku for character analysis
+    return await claudeService.analyzeCharactersWithClaude(text);
+  } catch (error) {
+    console.error('Character analysis error with Claude:', error);
+    // Fall back to basic implementation if Claude fails
+    return performBasicCharacterAnalysis(text);
+  }
+}
+
+// Fallback character analysis
+function performBasicCharacterAnalysis(text) {
   // Simple character detection using regular expressions
   const characterPattern = /\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\b(?:\s+(?:said|asked|replied|spoke|thought|felt|walked|ran|jumped|looked))/g;
   
@@ -231,7 +256,8 @@ async function analyzeCharacters(text) {
   
   return {
     characters,
-    score
+    score,
+    suggestions: "Try to develop your characters more by showing their unique traits and behaviors."
   };
 }
 
@@ -354,10 +380,17 @@ async function analyzeTense(text) {
   };
 }
 
-// AI content detection (simplified)
+// AI content detection with Claude Opus integration
 async function detectAIContent(text) {
-  // For demo purposes, return a low score
-  return 3;
+  try {
+    // Use Claude Opus for AI content detection
+    const result = await claudeService.detectAIContentWithClaude(text);
+    return result.score; // Return just the score to match existing function
+  } catch (error) {
+    console.error('AI detection error with Claude:', error);
+    // Fall back to basic implementation if Claude fails
+    return 5; // Default conservative score
+  }
 }
 
 // Plagiarism check (simplified)
