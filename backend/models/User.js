@@ -22,7 +22,10 @@ const UserSchema = new mongoose.Schema({
   level: {
     type: Number,
     default: 1
-  }
+  },
+    // Add these new fields for password reset
+  resetPasswordToken: String,
+  resetPasswordExpires: Date
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);
