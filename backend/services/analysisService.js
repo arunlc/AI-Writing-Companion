@@ -1,4 +1,5 @@
 const natural = require('natural');
+const claudeService = require('./claudeService');
 
 // Initialize NLP tools
 const tokenizer = new natural.WordTokenizer();
