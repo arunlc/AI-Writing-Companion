@@ -8,6 +8,8 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
+import StoryView from './components/StoryView';
+import StoriesList from './components/StoriesList';
 import * as api from './services/api';
 import './App.css';
 
@@ -287,6 +289,15 @@ function App() {
                   <ResetPassword />
                 </div>
               )
+            } />
+            
+            {/* Story Routes */}
+            <Route path="/my-stories" element={
+              user ? <StoriesList /> : <Navigate to="/login" />
+            } />
+            
+            <Route path="/story/:id" element={
+              user ? <StoryView /> : <Navigate to="/login" />
             } />
           </Routes>
         </main>
