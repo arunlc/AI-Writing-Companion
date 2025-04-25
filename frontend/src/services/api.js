@@ -46,12 +46,15 @@ export const resetPassword = async (token, password) => {
 
 // User API calls
 export const getUserProfile = async () => {
+  console.log('Fetching user profile');
   const response = await api.get('/user/profile');
   return response.data;
 };
 
 export const getUserSubmissions = async () => {
+  console.log('Fetching user submissions from frontend');
   const response = await api.get('/user/submissions');
+  console.log('Received submissions count:', response.data.length);
   return response.data;
 };
 
@@ -67,7 +70,9 @@ export const analyzeWriting = async (title, text) => {
 };
 
 export const saveSubmission = async (submission) => {
+  console.log('Saving submission from frontend');
   const response = await api.post('/analyze/save', submission);
+  console.log('Submission saved:', response.data);
   return response.data;
 };
 
