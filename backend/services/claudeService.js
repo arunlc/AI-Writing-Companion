@@ -1,14 +1,25 @@
 // backend/services/claudeService.js
 const { Anthropic } = require('@anthropic-ai/sdk');
 
-// Initialize the Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Check for API key
+const apiKey = process.env.ANTHROPIC_API_KEY;
+
+// Add this check
+if (!apiKey) {
+  console.warn('ANTHROPIC_API_KEY environment variable is not set. Claude features will not work.');
+}
+
+// Initialize only if API key exists
+const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
 
 // Grammar analysis using Claude Haiku
 async function checkGrammarWithClaude(text) {
   try {
+    // Check if anthropic is initialized
+    if (!anthropic) {
+      throw new Error('Anthropic client not initialized. Check API key.');
+    }
+    
     console.log("Calling Claude for grammar analysis...");
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
@@ -39,6 +50,11 @@ async function checkGrammarWithClaude(text) {
 // Character analysis using Claude Haiku
 async function analyzeCharactersWithClaude(text) {
   try {
+    // Check if anthropic is initialized
+    if (!anthropic) {
+      throw new Error('Anthropic client not initialized. Check API key.');
+    }
+    
     console.log("Calling Claude for character analysis...");
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
@@ -69,6 +85,11 @@ async function analyzeCharactersWithClaude(text) {
 // AI content detection using Claude Opus for higher accuracy
 async function detectAIContentWithClaude(text) {
   try {
+    // Check if anthropic is initialized
+    if (!anthropic) {
+      throw new Error('Anthropic client not initialized. Check API key.');
+    }
+    
     console.log("Calling Claude Opus for AI detection...");
     const response = await anthropic.messages.create({
       model: "claude-3-opus-20240229", // Using Opus for this critical feature
