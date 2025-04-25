@@ -76,4 +76,9 @@ export const saveSubmission = async (submission) => {
   return response.data;
 };
 
+// Add this function to frontend/src/services/api.js
+export const getSubmission = async (id) => {
+  const response = await api.get(`/analyze/${id}`);
+  return response.data;
+};
 export default api;
