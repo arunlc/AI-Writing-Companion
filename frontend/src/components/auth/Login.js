@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -78,6 +79,13 @@ const Login = ({ onLogin }) => {
           {isLoading ? 'Logging in...' : 'Log In'}
         </button>
       </form>
+      
+      {/* Forgot Password Link */}
+      <div className="mt-4 text-center">
+        <Link to="/forgot-password" className="text-sm text-indigo-600 hover:underline">
+          Forgot your password?
+        </Link>
+      </div>
     </div>
   );
 };
