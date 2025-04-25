@@ -1,3 +1,4 @@
+// backend/services/claudeService.js
 const { Anthropic } = require('@anthropic-ai/sdk');
 
 // Initialize the Anthropic client
@@ -8,6 +9,7 @@ const anthropic = new Anthropic({
 // Grammar analysis using Claude Haiku
 async function checkGrammarWithClaude(text) {
   try {
+    console.log("Calling Claude for grammar analysis...");
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
       max_tokens: 1000,
@@ -17,10 +19,13 @@ async function checkGrammarWithClaude(text) {
       {
         "errors": [{"original": "text with error", "correction": "corrected text", "explanation": "why this is an error"}],
         "score": 0-100 score evaluating grammar quality,
-        "summary": "kid-friendly summary of grammar strengths and areas to improve"
+        "summary": "kid-friendly summary of grammar strengths and areas to improve",
+        "correctedText": "full corrected version of the text"
       }`,
       messages: [{ role: "user", content: text }]
     });
+    
+    console.log("Claude grammar response received");
     
     // Parse the JSON response
     const result = JSON.parse(response.content[0].text);
@@ -34,6 +39,7 @@ async function checkGrammarWithClaude(text) {
 // Character analysis using Claude Haiku
 async function analyzeCharactersWithClaude(text) {
   try {
+    console.log("Calling Claude for character analysis...");
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
       max_tokens: 1000,
@@ -49,6 +55,8 @@ async function analyzeCharactersWithClaude(text) {
       messages: [{ role: "user", content: text }]
     });
     
+    console.log("Claude character response received");
+    
     // Parse the JSON response
     const result = JSON.parse(response.content[0].text);
     return result;
@@ -61,6 +69,7 @@ async function analyzeCharactersWithClaude(text) {
 // AI content detection using Claude Opus for higher accuracy
 async function detectAIContentWithClaude(text) {
   try {
+    console.log("Calling Claude Opus for AI detection...");
     const response = await anthropic.messages.create({
       model: "claude-3-opus-20240229", // Using Opus for this critical feature
       max_tokens: 500,
@@ -73,6 +82,8 @@ async function detectAIContentWithClaude(text) {
       }`,
       messages: [{ role: "user", content: text }]
     });
+    
+    console.log("Claude Opus AI detection response received");
     
     // Parse the JSON response
     const result = JSON.parse(response.content[0].text);
