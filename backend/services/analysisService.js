@@ -388,8 +388,8 @@ async function detectAIContent(text) {
     return result.score; // Return just the score to match existing function
   } catch (error) {
     console.error('AI detection error with Claude:', error);
-    // Fall back to basic implementation if Claude fails
-    return 50; // Default conservative score
+    // Fall back to basic implementation with a more cautious value
+    return 50; // Use 50 as a neutral/medium value when detection fails
   }
 }
 
@@ -433,7 +433,7 @@ async function identifyGenre(text) {
   return {
     primaryGenre,
     subGenres,
-    confidence: 0.7
+    confidence:.7
   };
 }
 
