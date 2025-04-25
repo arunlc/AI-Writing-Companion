@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Award, Book, Star, TrendingUp, FileText } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -84,44 +85,46 @@ const Dashboard = ({ user, submissions }) => {
         </div>
       )}
       
-    // Update the Recent Submissions section in Dashboard.js
-{/* Recent Submissions */}
-{submissions && submissions.length > 0 && (
-  <div className="bg-white p-6 rounded-lg shadow-md">
-    <h2 className="text-lg font-semibold mb-4">Recent Submissions</h2>
-    <div className="space-y-3">
-      {submissions.slice(0, 5).map((submission, idx) => (
-        <div key={idx} className="border-b pb-3 last:border-0">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <FileText className="w-4 h-4 text-gray-400 mr-2" />
-              <div>
-                <Link to={`/story/${submission._id}`} className="font-medium hover:text-indigo-600">
-                  {submission.title}
-                </Link>
-                <p className="text-xs text-gray-500">
-                  {new Date(submission.createdAt).toLocaleDateString()} • 
-                  {submission.analysis.basicMetrics.wordCount} words
-                </p>
+      {/* Recent Submissions */}
+      {submissions && submissions.length > 0 && (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-lg font-semibold mb-4">Recent Submissions</h2>
+          <div className="space-y-3">
+            {submissions.slice(0, 5).map((submission, idx) => (
+              <div key={idx} className="border-b pb-3 last:border-0">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <FileText className="w-4 h-4 text-gray-400 mr-2" />
+                    <div>
+                      <Link to={`/story/${submission._id}`} className="font-medium hover:text-indigo-600">
+                        {submission.title}
+                      </Link>
+                      <p className="text-xs text-gray-500">
+                        {new Date(submission.createdAt).toLocaleDateString()} • 
+                        {submission.analysis.basicMetrics.wordCount} words
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                    <span className="font-medium">{submission.analysis.metrics.overallScore}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center">
-              <Star className="w-4 h-4 text-yellow-400 mr-1" />
-              <span className="font-medium">{submission.analysis.metrics.overallScore}</span>
-            </div>
+            ))}
           </div>
+          
+          {submissions.length > 5 && (
+            <div className="mt-4 text-center">
+              <Link to="/my-stories" className="text-indigo-600 hover:underline">
+                View all stories
+              </Link>
+            </div>
+          )}
         </div>
-      ))}
+      )}
     </div>
-    
-    {submissions.length > 5 && (
-      <div className="mt-4 text-center">
-        <Link to="/my-stories" className="text-indigo-600 hover:underline">
-          View all stories
-        </Link>
-      </div>
-    )}
-  </div>
-)}
+  );
+};
 
 export default Dashboard;
