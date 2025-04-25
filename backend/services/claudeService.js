@@ -1,20 +1,32 @@
 // backend/services/claudeService.js
-const { Anthropic } = require('@anthropic-ai/sdk');
+console.log('Loading claudeService.js');
 
-// Check for API key
-const apiKey = process.env.ANTHROPIC_API_KEY;
-
-// Add this check
-if (!apiKey) {
-  console.warn('ANTHROPIC_API_KEY environment variable is not set. Claude features will not work.');
+let anthropic;
+try {
+  const { Anthropic } = require('@anthropic-ai/sdk');
+  console.log('Successfully imported @anthropic-ai/sdk');
+  
+  // Check for API key with extensive debugging
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  console.log('ANTHROPIC_API_KEY exists:', apiKey ? 'Yes' : 'No');
+  
+  if (!apiKey) {
+    console.warn('WARNING: ANTHROPIC_API_KEY environment variable is not set. Claude features will not work.');
+  } else {
+    console.log('Initializing Anthropic client with API key');
+    anthropic = new Anthropic({ apiKey });
+    console.log('Anthropic client initialized successfully');
+  }
+} catch (error) {
+  console.error('Error loading Anthropic SDK:', error);
+  anthropic = null;
 }
-
-// Initialize only if API key exists
-const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
 
 // Grammar analysis using Claude Haiku
 async function checkGrammarWithClaude(text) {
   try {
+    console.log('checkGrammarWithClaude called, anthropic client exists:', !!anthropic);
+    
     // Check if anthropic is initialized
     if (!anthropic) {
       throw new Error('Anthropic client not initialized. Check API key.');
@@ -50,6 +62,8 @@ async function checkGrammarWithClaude(text) {
 // Character analysis using Claude Haiku
 async function analyzeCharactersWithClaude(text) {
   try {
+    console.log('analyzeCharactersWithClaude called, anthropic client exists:', !!anthropic);
+    
     // Check if anthropic is initialized
     if (!anthropic) {
       throw new Error('Anthropic client not initialized. Check API key.');
@@ -85,6 +99,8 @@ async function analyzeCharactersWithClaude(text) {
 // AI content detection using Claude Opus for higher accuracy
 async function detectAIContentWithClaude(text) {
   try {
+    console.log('detectAIContentWithClaude called, anthropic client exists:', !!anthropic);
+    
     // Check if anthropic is initialized
     if (!anthropic) {
       throw new Error('Anthropic client not initialized. Check API key.');
