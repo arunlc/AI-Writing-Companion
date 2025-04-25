@@ -33,6 +33,17 @@ export const login = async (credentials) => {
   return response.data;
 };
 
+// Password reset API calls
+export const forgotPassword = async (email) => {
+  const response = await api.post('/auth/forgot-password', { email });
+  return response.data;
+};
+
+export const resetPassword = async (token, password) => {
+  const response = await api.post(`/auth/reset-password/${token}`, { password });
+  return response.data;
+};
+
 // User API calls
 export const getUserProfile = async () => {
   const response = await api.get('/user/profile');
