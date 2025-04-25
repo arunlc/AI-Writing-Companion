@@ -12,14 +12,18 @@ const userRoutes = require('./routes/user');
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Updated CORS configuration with your specific frontend URL
+app.use(cors({
+  origin: 'https://ai-writing-companion-1.onrender.com',
+  credentials: true
+}));
+
 app.use(express.json({ limit: '10mb' }));
 
-// Connect to MongoDB (uncomment when ready to connect)
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
