@@ -15,8 +15,10 @@ const auth = async (req, res, next) => {
     const token = req.header('Authorization').replace('Bearer ', '');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.userId;
+    console.log('Authenticated user ID in analysis routes:', req.userId); // Debug log
     next();
   } catch (error) {
+    console.error('Auth middleware error in analysis routes:', error);
     next(); // Continue without authentication for public analysis
   }
 };
@@ -52,7 +54,9 @@ router.post('/save', auth, async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // Create new submission
+    console.log('Saving submission for user:', req.userId); // Debug log
+    
+    // Create new submission with explicit userId
     const submission = new Submission({
       userId: req.userId,
       title,
@@ -61,6 +65,7 @@ router.post('/save', auth, async (req, res) => {
     });
     
     await submission.save();
+    console.log('Submission saved with ID:', submission._id); // Debug log
     
     // Calculate coins earned based on overall score
     const coinsEarned = Math.floor(analysis.metrics.overallScore / 10);
