@@ -10,8 +10,10 @@ const auth = async (req, res, next) => {
     const token = req.header('Authorization').replace('Bearer ', '');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.userId;
+    console.log('Authenticated user ID in user routes:', req.userId); // Debug log
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error);
     res.status(401).json({ error: 'Authentication required' });
   }
 };
@@ -35,9 +37,14 @@ router.get('/profile', auth, async (req, res) => {
 // Get user's submissions
 router.get('/submissions', auth, async (req, res) => {
   try {
+    console.log('Fetching submissions for user:', req.userId); // Debug log
+    
+    // Explicitly filter by authenticated user ID
     const submissions = await Submission.find({ userId: req.userId })
       .sort({ createdAt: -1 })
       .limit(10);
+    
+    console.log(`Found ${submissions.length} submissions for user ${req.userId}`); // Debug log
     
     res.json(submissions);
   } catch (error) {
