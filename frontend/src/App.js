@@ -6,6 +6,8 @@ import AnalysisResults from './components/AnalysisResults';
 import Dashboard from './components/Dashboard';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
+import ForgotPassword from './components/auth/ForgotPassword';
+import ResetPassword from './components/auth/ResetPassword';
 import * as api from './services/api';
 import './App.css';
 
@@ -262,6 +264,27 @@ function App() {
                       </Link>
                     </p>
                   </div>
+                </div>
+              )
+            } />
+            
+            {/* Password Reset Routes */}
+            <Route path="/forgot-password" element={
+              user ? (
+                <Navigate to="/" />
+              ) : (
+                <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
+                  <ForgotPassword />
+                </div>
+              )
+            } />
+            
+            <Route path="/reset-password/:token" element={
+              user ? (
+                <Navigate to="/" />
+              ) : (
+                <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
+                  <ResetPassword />
                 </div>
               )
             } />
