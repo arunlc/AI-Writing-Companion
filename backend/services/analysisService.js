@@ -97,7 +97,7 @@ async function analyzeWriting(text, title = '') {
       safeAnalyze(() => analyzeStructure(text), { beginning: 'Not analyzed', middle: 'Not analyzed', end: 'Not analyzed', suggestions: 'Try to have a clear beginning, middle, and end.', score: 60, uniqueness: 70 }),
       safeAnalyze(() => checkLogicalFlaws(text), { flaws: [], questions: [], score: 80 }),
       safeAnalyze(() => analyzeTense(text), { primary: 'Mixed', inconsistencies: [], score: 90 }),
-      safeAnalyze(() => detectAIContent(text), 50),
+      safeAnalyze(() => detectAIContent(text), { score: 50, fullResponse: fallbackAIDetection() }),
       safeAnalyze(() => checkPlagiarism(text), 2),
       safeAnalyze(() => identifyGenre(text), { primaryGenre: 'Fiction', subGenres: [] })
     ]);
@@ -109,13 +109,13 @@ async function analyzeWriting(text, title = '') {
     const structureAnalysis = getSettledValue(structureAnalysisResult, { beginning: 'Not analyzed', middle: 'Not analyzed', end: 'Not analyzed', suggestions: 'Try to have a clear beginning, middle, and end.', score: 60, uniqueness: 70 });
     const logicalFlawsAnalysis = getSettledValue(logicalFlawsAnalysisResult, { flaws: [], questions: [], score: 80 });
     const tenseAnalysis = getSettledValue(tenseAnalysisResult, { primary: 'Mixed', inconsistencies: [], score: 90 });
-    const aiContentScore = getSettledValue(aiContentScoreResult, 50);
+    const aiContentScore = getSettledValue(aiContentScoreResult, { score: 50, fullResponse: fallbackAIDetection() });
     const plagiarismScore = getSettledValue(plagiarismScoreResult, 2);
     const genreAnalysis = getSettledValue(genreAnalysisResult, { primaryGenre: 'Fiction', subGenres: [] });
     
     // 10. Originality score calculation
     const originalityScore = calculateOriginality(
-      aiContentScore, 
+      aiContentScore.score, // Now using .score from the object 
       plagiarismScore, 
       structureAnalysis.uniqueness || 70
     );
@@ -128,7 +128,7 @@ async function analyzeWriting(text, title = '') {
       characters: characterAnalysis.score,
       logicalFlow: logicalFlawsAnalysis.score,
       tense: tenseAnalysis.score,
-      aiContent: 100 - aiContentScore,
+      aiContent: 100 - aiContentScore.score, // Now using .score from the object
       plagiarism: 100 - plagiarismScore,
       originality: originalityScore
     });
@@ -146,8 +146,10 @@ async function analyzeWriting(text, title = '') {
       structure: structureAnalysis,
       logicalFlaws: logicalFlawsAnalysis,
       tense: tenseAnalysis,
+      // Add full AI detection data
+      aiDetection: aiContentScore.fullResponse,
       metrics: {
-        aiScore: aiContentScore,
+        aiScore: aiContentScore.score, // Now using .score from the object
         plagiarismScore: plagiarismScore,
         originalityScore: originalityScore,
         genre: genreAnalysis.primaryGenre,
@@ -282,7 +284,7 @@ async function analyzeTone(text) {
   if (sentimentScore > 0.2) sentiment = 'Positive';
   if (sentimentScore < -0.2) sentiment = 'Negative';
   
-  // Basic tone classification based on text patterns
+// Basic tone classification based on text patterns
   let classification = 'Neutral';
   const formalPatterns = [
     /\b(therefore|however|consequently|furthermore|moreover|thus|hence)\b/i,
@@ -505,16 +507,24 @@ async function analyzeTense(text) {
   };
 }
 
-// AI content detection with Claude integration
+// AI content detection with Claude integration - UPDATED
 async function detectAIContent(text) {
   try {
     // Use Claude for AI content detection
     const result = await claudeService.detectAIContentWithClaude(text);
-    return result.score; // Return just the score to match existing function
+    
+    // Return both the score and the full response object
+    return {
+      score: result.score,
+      fullResponse: result // Contains reasoning, confidence, etc.
+    };
   } catch (error) {
     console.error('AI detection error with Claude:', error);
     // Fall back to basic implementation with a more cautious value
-    return 50; // Use 50 as a neutral/medium value when detection fails
+    return {
+      score: 50,
+      fullResponse: fallbackAIDetection()
+    };
   }
 }
 
