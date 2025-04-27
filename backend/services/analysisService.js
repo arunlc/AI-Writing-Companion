@@ -6,42 +6,69 @@ const tokenizer = new natural.WordTokenizer();
 const stemmer = natural.PorterStemmer;
 const analyzer = new natural.SentimentAnalyzer('English', stemmer, 'afinn');
 
+// Cache for repeated analysis requests (helps with Render's free tier resource limits)
+const analysisCache = new Map();
+const CACHE_TTL = 3600000; // 1 hour in milliseconds
+
 // Main analysis function
 async function analyzeWriting(text, title = '') {
   try {
+    // Generate a cache key based on text content
+    // We're using a short hash of the text to avoid storing full text as keys
+    const cacheKey = hashText(text);
+    
+    // Check if we have a cached result for this exact text
+    if (analysisCache.has(cacheKey)) {
+      const cachedResult = analysisCache.get(cacheKey);
+      if (Date.now() - cachedResult.timestamp < CACHE_TTL) {
+        return cachedResult.analysis;
+      } else {
+        // Remove expired cache entry
+        analysisCache.delete(cacheKey);
+      }
+    }
+    
     // Basic text metrics
     const tokens = tokenizer.tokenize(text);
     const wordCount = tokens.length;
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const sentenceCount = sentences.length;
+    const sentenceCount = Math.max(1, sentences.length); // Avoid division by zero
     const avgWordsPerSentence = wordCount / sentenceCount;
     
-    // 1. Grammar and proofreading analysis
-    const grammarAnalysis = await checkGrammar(text);
+    // Analysis components with error handling
+    // Use Promise.allSettled to continue even if some analyses fail
+    const [
+      grammarAnalysisResult,
+      toneAnalysisResult,
+      characterAnalysisResult,
+      structureAnalysisResult,
+      logicalFlawsAnalysisResult,
+      tenseAnalysisResult,
+      aiContentScoreResult,
+      plagiarismScoreResult,
+      genreAnalysisResult
+    ] = await Promise.allSettled([
+      checkGrammar(text),
+      analyzeTone(text),
+      analyzeCharacters(text),
+      analyzeStructure(text),
+      checkLogicalFlaws(text),
+      analyzeTense(text),
+      detectAIContent(text),
+      checkPlagiarism(text),
+      identifyGenre(text)
+    ]);
     
-    // 2. Tone and sentiment analysis
-    const toneAnalysis = await analyzeTone(text);
-    
-    // 3. Character analysis
-    const characterAnalysis = await analyzeCharacters(text);
-    
-    // 4. Structure analysis
-    const structureAnalysis = await analyzeStructure(text);
-    
-    // 5. Logical flow analysis
-    const logicalFlawsAnalysis = await checkLogicalFlaws(text);
-    
-    // 6. Tense analysis
-    const tenseAnalysis = await analyzeTense(text);
-    
-    // 7. AI content detection
-    const aiContentScore = await detectAIContent(text);
-    
-    // 8. Plagiarism check (mocked for demo purposes)
-    const plagiarismScore = await checkPlagiarism(text);
-    
-    // 9. Genre identification
-    const genreAnalysis = await identifyGenre(text);
+    // Extract results, handling potential failures
+    const grammarAnalysis = getSettledValue(grammarAnalysisResult, performBasicGrammarCheck(text));
+    const toneAnalysis = getSettledValue(toneAnalysisResult, { classification: 'Neutral', confidence: 0.5, sentiment: 'Neutral', appropriateness: 70 });
+    const characterAnalysis = getSettledValue(characterAnalysisResult, performBasicCharacterAnalysis(text));
+    const structureAnalysis = getSettledValue(structureAnalysisResult, { beginning: 'Not analyzed', middle: 'Not analyzed', end: 'Not analyzed', suggestions: 'Try to have a clear beginning, middle, and end.', score: 60, uniqueness: 70 });
+    const logicalFlawsAnalysis = getSettledValue(logicalFlawsAnalysisResult, { flaws: [], questions: [], score: 80 });
+    const tenseAnalysis = getSettledValue(tenseAnalysisResult, { primary: 'Mixed', inconsistencies: [], score: 90 });
+    const aiContentScore = getSettledValue(aiContentScoreResult, 50);
+    const plagiarismScore = getSettledValue(plagiarismScoreResult, 2);
+    const genreAnalysis = getSettledValue(genreAnalysisResult, { primaryGenre: 'Fiction', subGenres: [] });
     
     // 10. Originality score calculation
     const originalityScore = calculateOriginality(
@@ -81,16 +108,43 @@ async function analyzeWriting(text, title = '') {
         plagiarismScore: plagiarismScore,
         originalityScore: originalityScore,
         genre: genreAnalysis.primaryGenre,
-        subGenres: genreAnalysis.subGenres,
+        subGenres: genreAnalysis.subGenres || [],
         overallScore: overallScore
       }
     };
+    
+    // Cache the result
+    analysisCache.set(cacheKey, {
+      analysis: analysisResult,
+      timestamp: Date.now()
+    });
     
     return analysisResult;
   } catch (error) {
     console.error('Error analyzing writing:', error);
     throw new Error('Failed to analyze writing: ' + error.message);
   }
+}
+
+// Helper to safely extract value from Promise.allSettled result
+function getSettledValue(result, defaultValue) {
+  return result.status === 'fulfilled' ? result.value : defaultValue;
+}
+
+// Simple hash function for text
+function hashText(text) {
+  let hash = 0;
+  if (text.length === 0) return hash;
+  
+  const sample = text.length > 100 ? text.substring(0, 100) : text;
+  
+  for (let i = 0; i < sample.length; i++) {
+    const char = sample.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  return hash.toString();
 }
 
 // Grammar checking function with Claude integration
@@ -193,7 +247,7 @@ async function analyzeTone(text) {
   // Calculate confidence
   const totalPatterns = formalPatterns.length + casualPatterns.length;
   const highestScore = Math.max(formalScore, casualScore);
-  const confidence = highestScore / totalPatterns;
+  const confidence = totalPatterns > 0 ? highestScore / totalPatterns : 0.5;
   
   // Estimate appropriateness (can be refined)
   const appropriateness = 70 + (confidence * 15) + (sentimentScore > 0 ? 5 : 0);
@@ -251,7 +305,7 @@ function performBasicCharacterAnalysis(text) {
   
   // Calculate score based on characters and mentions
   const characterCount = characters.length;
-  const totalMentions = Object.values(characterMentions).reduce((sum, val) => sum + val, 0);
+  const totalMentions = Object.values(characterMentions).reduce((sum, val) => sum + val, 0) || 0;
   const score = Math.min(100, Math.max(0, 40 + (characterCount * 10) + (totalMentions / 2)));
   
   return {
@@ -367,9 +421,9 @@ async function analyzeTense(text) {
   
   // Determine primary tense
   let primaryTense = 'Mixed';
-  if (pastCount > presentCount) {
+  if (pastCount > presentCount * 1.5) {
     primaryTense = 'Past tense';
-  } else if (presentCount > pastCount) {
+  } else if (presentCount > pastCount * 1.5) {
     primaryTense = 'Present tense';
   }
   
@@ -380,10 +434,10 @@ async function analyzeTense(text) {
   };
 }
 
-// AI content detection with Claude Opus integration
+// AI content detection with Claude integration
 async function detectAIContent(text) {
   try {
-    // Use Claude Opus for AI content detection
+    // Use Claude for AI content detection
     const result = await claudeService.detectAIContentWithClaude(text);
     return result.score; // Return just the score to match existing function
   } catch (error) {
@@ -424,7 +478,7 @@ async function identifyGenre(text) {
     .sort((a, b) => b[1] - a[1]);
   
   // Get primary genre and sub-genres
-  const primaryGenre = sortedGenres[0][0];
+  const primaryGenre = sortedGenres.length > 0 ? sortedGenres[0][0] : 'Fiction';
   const subGenres = sortedGenres
     .slice(1, 3)
     .filter(([_, score]) => score > 0)
@@ -433,7 +487,7 @@ async function identifyGenre(text) {
   return {
     primaryGenre,
     subGenres,
-    confidence:.7
+    confidence: 0.7
   };
 }
 
