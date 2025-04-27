@@ -29,6 +29,7 @@ async function checkGrammarWithClaude(text) {
   
   try {
     const truncatedText = text.length > 5000 ? text.substring(0, 5000) + '...' : text;
+    console.log('Grammar analysis: Starting API call to Claude');
     
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
@@ -50,11 +51,15 @@ async function checkGrammarWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
+    console.log('Grammar analysis: Received response from Claude');
+    
     // Extract only the JSON part from the response
     let responseText = response.content[0].text.trim();
+    console.log('Grammar analysis raw response (first 100 chars):', responseText.substring(0, 100));
     
     // If response starts with markdown code block, extract only the JSON part
     if (responseText.startsWith('```json')) {
+      console.log('Grammar analysis: Detected JSON code block, extracting content');
       responseText = responseText.replace(/```json\n/, '').replace(/\n```$/, '');
     }
     
@@ -62,21 +67,33 @@ async function checkGrammarWithClaude(text) {
     responseText = responseText.replace(/\n+/g, ' ').trim(); // Replace newlines with spaces
     
     try {
-      return JSON.parse(responseText);
+      const result = JSON.parse(responseText);
+      console.log('Grammar analysis: Successfully parsed JSON', {
+        score: result.score,
+        errorCount: result.errors ? result.errors.length : 0
+      });
+      return result;
     } catch (jsonError) {
-      console.error('Failed to parse JSON from Claude:', jsonError);
-      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      console.error('Failed to parse JSON from Claude for grammar analysis:', jsonError);
+      console.log('Raw Claude response for grammar analysis:', responseText.substring(0, 200) + '...');
       
       // Attempt to extract JSON with regex as a last resort
+      console.log('Grammar analysis: Attempting regex JSON extraction');
       const jsonMatch = response.content[0].text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          return JSON.parse(jsonMatch[0]);
+          const result = JSON.parse(jsonMatch[0]);
+          console.log('Grammar analysis: Successfully extracted JSON with regex', {
+            score: result.score,
+            errorCount: result.errors ? result.errors.length : 0
+          });
+          return result;
         } catch (e) {
-          console.error('Failed to parse extracted JSON:', e);
+          console.error('Failed to parse extracted JSON for grammar analysis:', e);
         }
       }
       
+      console.log('Grammar analysis: All parsing attempts failed, using fallback');
       return fallbackGrammarCheck(text);
     }
   } catch (error) {
@@ -94,6 +111,7 @@ async function analyzeCharactersWithClaude(text) {
   
   try {
     const truncatedText = text.length > 5000 ? text.substring(0, 5000) + '...' : text;
+    console.log('Character analysis: Starting API call to Claude');
     
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
@@ -116,11 +134,15 @@ async function analyzeCharactersWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
+    console.log('Character analysis: Received response from Claude');
+    
     // Extract only the JSON part from the response
     let responseText = response.content[0].text.trim();
+    console.log('Character analysis raw response (first 100 chars):', responseText.substring(0, 100));
     
     // If response starts with markdown code block, extract only the JSON part
     if (responseText.startsWith('```json')) {
+      console.log('Character analysis: Detected JSON code block, extracting content');
       responseText = responseText.replace(/```json\n/, '').replace(/\n```$/, '');
     }
     
@@ -128,21 +150,33 @@ async function analyzeCharactersWithClaude(text) {
     responseText = responseText.replace(/\n+/g, ' ').trim(); // Replace newlines with spaces
     
     try {
-      return JSON.parse(responseText);
+      const result = JSON.parse(responseText);
+      console.log('Character analysis: Successfully parsed JSON', {
+        score: result.score,
+        characterCount: result.characters ? result.characters.length : 0
+      });
+      return result;
     } catch (jsonError) {
-      console.error('Failed to parse JSON from Claude:', jsonError);
-      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      console.error('Failed to parse JSON from Claude for character analysis:', jsonError);
+      console.log('Raw Claude response for character analysis:', responseText.substring(0, 200) + '...');
       
       // Attempt to extract JSON with regex as a last resort
+      console.log('Character analysis: Attempting regex JSON extraction');
       const jsonMatch = response.content[0].text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          return JSON.parse(jsonMatch[0]);
+          const result = JSON.parse(jsonMatch[0]);
+          console.log('Character analysis: Successfully extracted JSON with regex', {
+            score: result.score,
+            characterCount: result.characters ? result.characters.length : 0
+          });
+          return result;
         } catch (e) {
-          console.error('Failed to parse extracted JSON:', e);
+          console.error('Failed to parse extracted JSON for character analysis:', e);
         }
       }
       
+      console.log('Character analysis: All parsing attempts failed, using fallback');
       return fallbackCharacterAnalysis(text);
     }
   } catch (error) {
@@ -160,19 +194,32 @@ async function detectAIContentWithClaude(text) {
   
   try {
     const truncatedText = text.length > 5000 ? text.substring(0, 5000) + '...' : text;
+    console.log('AI detection: Starting API call to Claude with text length:', truncatedText.length);
+    console.log('AI detection: Sample of text:', truncatedText.substring(0, 100));
     
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
       max_tokens: 500,
-      system: `Determine how likely the text was generated by AI.
+      system: `You are an expert in detecting AI-generated text. Analyze the provided text and determine how likely it was generated by an AI system like ChatGPT, Claude, or similar large language models.
+
+      Pay careful attention to:
+      - Repetitive or formulaic phrasing
+      - Lack of personal experiences or specific details
+      - Generic descriptions
+      - Overly perfect grammar and structure
+      - Lack of idiosyncrasies or unique voice
       
       You MUST respond ONLY with valid JSON in this exact format, with no other text, explanation, or commentary:
       
       {
         "score": 0-100 (higher means more likely AI-generated),
-        "reasoning": "explanation",
+        "reasoning": "detailed explanation of why you believe the text is or isn't AI-generated",
         "confidence": 0-1 confidence value
       }
+      
+      If the text appears CLEARLY AI-generated, score it 80-100.
+      If the text CLEARLY appears human-written, score it 0-20.
+      Uncertain cases should be scored between 20-80.
       
       Make sure your JSON is valid and properly escaped.
       DO NOT include any explanation or text outside the JSON.
@@ -180,11 +227,15 @@ async function detectAIContentWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
+    console.log('AI detection: Received response from Claude');
+    
     // Extract only the JSON part from the response
     let responseText = response.content[0].text.trim();
+    console.log('AI detection raw response:', responseText);
     
     // If response starts with markdown code block, extract only the JSON part
     if (responseText.startsWith('```json')) {
+      console.log('AI detection: Detected JSON code block, extracting content');
       responseText = responseText.replace(/```json\n/, '').replace(/\n```$/, '');
     }
     
@@ -192,21 +243,36 @@ async function detectAIContentWithClaude(text) {
     responseText = responseText.replace(/\n+/g, ' ').trim(); // Replace newlines with spaces
     
     try {
-      return JSON.parse(responseText);
+      const result = JSON.parse(responseText);
+      console.log('AI detection: Successfully parsed JSON', {
+        score: result.score,
+        confidence: result.confidence,
+        reasoning: result.reasoning ? result.reasoning.substring(0, 100) + '...' : 'No reasoning provided'
+      });
+      return result;
     } catch (jsonError) {
-      console.error('Failed to parse JSON from Claude:', jsonError);
-      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      console.error('Failed to parse JSON from Claude for AI detection:', jsonError);
+      console.log('Raw Claude response for AI detection:', responseText);
       
       // Attempt to extract JSON with regex as a last resort
+      console.log('AI detection: Attempting regex JSON extraction');
       const jsonMatch = response.content[0].text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          return JSON.parse(jsonMatch[0]);
+          const matchedJson = jsonMatch[0];
+          console.log('AI detection: Extracted potential JSON:', matchedJson);
+          const result = JSON.parse(matchedJson);
+          console.log('AI detection: Successfully extracted JSON with regex', {
+            score: result.score,
+            confidence: result.confidence
+          });
+          return result;
         } catch (e) {
-          console.error('Failed to parse extracted JSON:', e);
+          console.error('Failed to parse extracted JSON for AI detection:', e);
         }
       }
       
+      console.log('AI detection: All parsing attempts failed, using fallback');
       return fallbackAIDetection();
     }
   } catch (error) {
@@ -217,6 +283,7 @@ async function detectAIContentWithClaude(text) {
 
 // Fallback functions when Claude isn't available
 function fallbackGrammarCheck(text) {
+  console.log('Using fallback grammar check function');
   return {
     errors: [],
     score: 85,
@@ -226,6 +293,7 @@ function fallbackGrammarCheck(text) {
 }
 
 function fallbackCharacterAnalysis(text) {
+  console.log('Using fallback character analysis function');
   return {
     characters: [],
     score: 60,
@@ -234,6 +302,7 @@ function fallbackCharacterAnalysis(text) {
 }
 
 function fallbackAIDetection() {
+  console.log('Using fallback AI detection function - THIS IS A FALLBACK VALUE, NOT REAL ANALYSIS');
   return {
     score: 20,
     reasoning: "AI detection could not be performed with AI assistant.",
