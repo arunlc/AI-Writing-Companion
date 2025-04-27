@@ -43,7 +43,14 @@ async function checkGrammarWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
-    return JSON.parse(response.content[0].text);
+    // Add safety check for JSON parsing
+    try {
+      return JSON.parse(response.content[0].text);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON from Claude:', jsonError);
+      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      return fallbackGrammarCheck(text);
+    }
   } catch (error) {
     console.error('Claude grammar analysis error:', error);
     return fallbackGrammarCheck(text);
@@ -75,7 +82,14 @@ async function analyzeCharactersWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
-    return JSON.parse(response.content[0].text);
+    // Add safety check for JSON parsing
+    try {
+      return JSON.parse(response.content[0].text);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON from Claude:', jsonError);
+      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      return fallbackCharacterAnalysis(text);
+    }
   } catch (error) {
     console.error('Claude character analysis error:', error);
     return fallbackCharacterAnalysis(text);
@@ -104,7 +118,14 @@ async function detectAIContentWithClaude(text) {
       messages: [{ role: "user", content: truncatedText }]
     });
     
-    return JSON.parse(response.content[0].text);
+    // Add safety check for JSON parsing
+    try {
+      return JSON.parse(response.content[0].text);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON from Claude:', jsonError);
+      console.log('Raw Claude response:', response.content[0].text.substring(0, 200) + '...');
+      return fallbackAIDetection();
+    }
   } catch (error) {
     console.error('Claude AI detection error:', error);
     return fallbackAIDetection();
@@ -121,7 +142,7 @@ function fallbackGrammarCheck(text) {
   };
 }
 
-function fallbackCharacterAnalysis() {
+function fallbackCharacterAnalysis(text) {
   return {
     characters: [],
     score: 60,
