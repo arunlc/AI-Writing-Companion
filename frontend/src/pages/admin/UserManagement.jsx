@@ -1,3 +1,5 @@
+import React from 'react';
+
 const UserManagement = () => {
   return (
     <div className="p-6">
@@ -15,3 +17,5 @@ const UserManagement = () => {
     </div>
   );
 };
+
+export default UserManagement;
