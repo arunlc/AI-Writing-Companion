@@ -24,7 +24,9 @@ const Dashboard = () => {
     dashboardAPI.getStats,
     {
       retry: 2,
-      refetchOnWindowFocus: false
+      refetchOnWindowFocus: false,
+      staleTime: 0,
+      cacheTime: 0
     }
   );
 
