@@ -1,3 +1,5 @@
+import React from 'react';
+
 const SubmissionDetails = () => {
   return (
     <div className="p-6">
@@ -12,3 +14,5 @@ const SubmissionDetails = () => {
     </div>
   );
 };
+
+export default SubmissionDetails;
