@@ -1,3 +1,6 @@
+import React from 'react';
+import clsx from 'clsx';
+
 const Input = React.forwardRef(({
   label,
   error,
@@ -30,3 +33,5 @@ const Input = React.forwardRef(({
 });
 
 Input.displayName = 'Input';
+
+export default Input;
