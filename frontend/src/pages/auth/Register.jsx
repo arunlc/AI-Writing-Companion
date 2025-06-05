@@ -85,8 +85,8 @@ const Register = () => {
         name: formData.name.trim(),
         email: formData.email,
         password: formData.password,
-        grade: formData.grade || null,
-        parentEmail: formData.parentEmail || null
+        grade: formData.grade || undefined,
+        parentEmail: formData.parentEmail || undefined
       };
 
       const result = await register(userData);
