@@ -1,6 +1,7 @@
 {
   "name": "ai-writing-companion-frontend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Frontend for AI Writing Companion - Educational Writing & Publishing Workflow",
   "private": true,
   "dependencies": {
