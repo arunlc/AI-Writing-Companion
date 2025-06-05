@@ -1,4 +1,3 @@
-// Button.jsx
 import React from 'react';
 import clsx from 'clsx';
 
@@ -43,3 +42,5 @@ const Button = ({
     </button>
   );
 };
+
+export default Button;
