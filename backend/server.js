@@ -9,13 +9,14 @@ const rateLimit = require('express-rate-limit');
 
 const { PrismaClient } = require('@prisma/client');
 const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const submissionRoutes = require('./routes/submissions');
-const fileRoutes = require('./routes/files');
-const approvalRoutes = require('./routes/approvals');
-const eventRoutes = require('./routes/events');
-const dashboardRoutes = require('./routes/dashboard');
-const reviewRoutes = require('./routes/reviews');
+// Comment out these lines until you create the files:
+// const userRoutes = require('./routes/users');
+// const submissionRoutes = require('./routes/submissions');
+// const fileRoutes = require('./routes/files');
+// const approvalRoutes = require('./routes/approvals');
+// const eventRoutes = require('./routes/events');
+// const dashboardRoutes = require('./routes/dashboard');
+// const reviewRoutes = require('./routes/reviews');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -72,13 +73,13 @@ app.get('/health', async (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/approvals', approvalRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/reviews', reviewRoutes);
+//app.use('/api/users', userRoutes);
+//app.use('/api/submissions', submissionRoutes);
+//app.use('/api/files', fileRoutes);
+//app.use('/api/approvals', approvalRoutes);
+//app.use('/api/events', eventRoutes);
+//app.use('/api/dashboard', dashboardRoutes);
+//app.use('/api/reviews', reviewRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
