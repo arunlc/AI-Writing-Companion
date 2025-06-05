@@ -135,6 +135,7 @@ Please be thorough but constructive in your feedback, focusing on helping the st
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01',
             'x-api-key': this.apiKey
           },
           timeout: 30000 // 30 second timeout
