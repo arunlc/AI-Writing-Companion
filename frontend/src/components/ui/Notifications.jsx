@@ -14,7 +14,7 @@ import { BellIcon as BellSolidIcon } from '@heroicons/react/24/solid';
 import Button from '../ui/Button';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import clsx from 'clsx';
-import { api } from '../../services/api';
+import api from '../../services/api';
 
 // Create notification API functions
 const notificationsAPI = {
