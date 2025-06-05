@@ -11,7 +11,7 @@ const { PrismaClient } = require('@prisma/client');
 const { router: authRoutes, authenticateToken } = require('./routes/auth');
 // Comment out these lines until you create the files:
 // const userRoutes = require('./routes/users');
-// const submissionRoutes = require('./routes/submissions');
+const submissionRoutes = require('./routes/submissions');
 // const fileRoutes = require('./routes/files');
 // const approvalRoutes = require('./routes/approvals');
 // const eventRoutes = require('./routes/events');
