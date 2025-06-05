@@ -7,7 +7,7 @@ import {
   PlusIcon,
   MapPinIcon,
   UserGroupIcon,
-  VideoIcon,
+  VideoCameraIcon,
   ClockIcon,
   CheckCircleIcon,
   XMarkIcon
@@ -314,7 +314,7 @@ const EventsList = () => {
                       <div className="flex items-center text-sm text-gray-600">
                         {event.isVirtual ? (
                           <>
-                            <VideoIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+                            <VideoCameraIcon className="h-4 w-4 mr-2 flex-shrink-0" />
                             <span>Virtual Event</span>
                           </>
                         ) : (
@@ -385,7 +385,7 @@ const EventsList = () => {
                           rel="noopener noreferrer"
                           className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center"
                         >
-                          <VideoIcon className="h-4 w-4 mr-1" />
+                          <VideoCameraIcon className="h-4 w-4 mr-1" />
                           Join Meeting
                         </a>
                       </div>
