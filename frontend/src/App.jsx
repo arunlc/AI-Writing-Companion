@@ -1,21 +1,137 @@
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
+import Layout from './components/layout/Layout';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import Dashboard from './pages/dashboard/Dashboard';
+import SubmissionsList from './pages/submissions/SubmissionsList';
+import NewSubmission from './pages/submissions/NewSubmission';
+import SubmissionDetails from './pages/submissions/SubmissionDetails';
+import Profile from './pages/profile/Profile';
+import UserManagement from './pages/admin/UserManagement';
+import ReviewQueue from './pages/reviews/ReviewQueue';
+import EventsList from './pages/events/EventsList';
+import LoadingSpinner from './components/ui/LoadingSpinner';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, allowedRoles = [] }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="large" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Public Route Component (redirect if already authenticated)
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="large" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          AI Writing Companion
-        </h1>
-        <p className="text-lg text-gray-600">
-          Educational Writing & Publishing Workflow
-        </p>
-        <div className="mt-8">
-          <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-            🚀 Coming Soon
-          </span>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <Routes>
+        {/* Public Routes */}
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
+
+        {/* Protected Routes */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Routes>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/profile" element={<Profile />} />
+                  
+                  {/* Submissions Routes */}
+                  <Route path="/submissions" element={<SubmissionsList />} />
+                  <Route 
+                    path="/submissions/new" 
+                    element={
+                      <ProtectedRoute allowedRoles={['STUDENT']}>
+                        <NewSubmission />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="/submissions/:id" element={<SubmissionDetails />} />
+                  
+                  {/* Admin Routes */}
+                  <Route 
+                    path="/admin/users" 
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <UserManagement />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Reviewer Routes */}
+                  <Route 
+                    path="/reviews" 
+                    element={
+                      <ProtectedRoute allowedRoles={['REVIEWER', 'ADMIN']}>
+                        <ReviewQueue />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Events Routes */}
+                  <Route path="/events" element={<EventsList />} />
+                  
+                  {/* Default redirect */}
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
     </div>
   );
 }
