@@ -15,7 +15,7 @@ const { router: authRoutes, authenticateToken } = require('./routes/auth');
 // const fileRoutes = require('./routes/files');
 // const approvalRoutes = require('./routes/approvals');
 // const eventRoutes = require('./routes/events');
-// const dashboardRoutes = require('./routes/dashboard');
+const dashboardRoutes = require('./routes/dashboard');
 // const reviewRoutes = require('./routes/reviews');
 
 const app = express();
