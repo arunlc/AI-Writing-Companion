@@ -101,7 +101,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // GET /api/submissions/:id - Get specific submission
 router.get('/:id', authenticateToken, [
-  param('id').isUUID().withMessage('Invalid submission ID')
+  param('id').isLength({ min: 1 }).withMessage('Invalid submission ID')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
