@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { NotificationBell } from '../ui/Notifications';
 import { 
   HomeIcon,
   DocumentTextIcon,
@@ -255,14 +256,24 @@ const Layout = ({ children }) => {
 
       {/* Main content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        {/* Top navigation */}
-        <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
-          <button
-            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Bars3Icon className="h-6 w-6" />
-          </button>
+        {/* Top navigation bar for mobile */}
+        <div className="md:hidden">
+          <div className="flex items-center justify-between pl-1 pt-1 pr-4 pb-1 sm:pl-3 sm:pt-3 sm:pr-6 sm:pb-3 bg-white shadow-sm">
+            <button
+              className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Bars3Icon className="h-6 w-6" />
+            </button>
+            
+            {/* Mobile notification bell */}
+            <NotificationBell />
+          </div>
+        </div>
+
+        {/* Desktop top bar with notifications */}
+        <div className="hidden md:flex md:items-center md:justify-end md:px-6 md:py-3 bg-white shadow-sm border-b border-gray-200">
+          <NotificationBell />
         </div>
 
         {/* Page content */}
