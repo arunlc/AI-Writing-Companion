@@ -19,7 +19,7 @@ import Button from '../../components/ui/Button';
 const Dashboard = () => {
   const { user } = useAuth();
 
-  const { data: stats, isLoading } = useQuery(
+  const { data: response, isLoading } = useQuery(
     'dashboard-stats',
     dashboardAPI.getStats,
     {
@@ -29,6 +29,12 @@ const Dashboard = () => {
       cacheTime: 0
     }
   );
+
+  // ✅ FIX: Extract stats from response.data
+  const stats = response?.data;
+
+  console.log('Dashboard response:', response);
+  console.log('Dashboard stats:', stats);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
