@@ -78,7 +78,7 @@ app.use('/api/auth', authRoutes);
 //app.use('/api/files', fileRoutes);
 //app.use('/api/approvals', approvalRoutes);
 //app.use('/api/events', eventRoutes);
-//app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 //app.use('/api/reviews', reviewRoutes);
 
 // 404 handler
