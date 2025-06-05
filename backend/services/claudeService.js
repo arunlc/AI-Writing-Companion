@@ -5,7 +5,7 @@ class ClaudeService {
   constructor() {
     this.apiKey = process.env.ANTHROPIC_API_KEY;
     this.baseURL = 'https://api.anthropic.com/v1';
-    this.model = 'claude-3-5-sonnet-20250605';
+    this.model = 'claude-3-5-sonnet-20241022';
     this.cache = new Map(); // Simple in-memory cache
     this.maxCacheSize = 1000;
   }
