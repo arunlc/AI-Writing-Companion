@@ -194,7 +194,7 @@ router.post('/', authenticateToken, requireRole(['STUDENT']), [
   const { title, content } = req.body;
 
   try {
-    // Create submission
+    // Create submission first
     const submission = await prisma.submission.create({
       data: {
         studentId: req.user.id,
@@ -220,60 +220,8 @@ router.post('/', authenticateToken, requireRole(['STUDENT']), [
       }
     });
 
-    // Trigger Claude analysis
-    try {
-      const analysisResult = await analyzeWithClaude(content, title);
-      
-      // Update submission with analysis
-      await prisma.submission.update({
-        where: { id: submission.id },
-        data: {
-          analysisResult,
-          currentStage: 'PLAGIARISM_REVIEW'
-        }
-      });
-
-      // Complete analysis stage
-      await prisma.workflowStage.updateMany({
-        where: {
-          submissionId: submission.id,
-          stageName: 'ANALYSIS'
-        },
-        data: {
-          status: 'completed',
-          completedAt: new Date()
-        }
-      });
-
-      // Create plagiarism review stage
-      await prisma.workflowStage.create({
-        data: {
-          submissionId: submission.id,
-          stageNumber: 2,
-          stageName: 'PLAGIARISM_REVIEW',
-          status: 'pending',
-          startedAt: new Date()
-        }
-      });
-
-      // Notify reviewers
-      const reviewers = await prisma.user.findMany({
-        where: { role: 'REVIEWER', isActive: true }
-      });
-
-      for (const reviewer of reviewers) {
-        await createNotification({
-          userId: reviewer.id,
-          type: 'ASSIGNMENT',
-          title: 'New Submission for Plagiarism Review',
-          message: `A new submission "${title}" by ${req.user.name} is ready for plagiarism review.`
-        });
-      }
-
-    } catch (analysisError) {
-      console.error('Claude analysis failed:', analysisError);
-      // Continue without analysis - can be retried later
-    }
+    // Start Claude analysis in background (don't wait for it)
+    analyzeSubmissionAsync(submission.id, content, title, req.user.name);
 
     res.status(201).json({
       message: 'Submission created successfully',
@@ -285,7 +233,169 @@ router.post('/', authenticateToken, requireRole(['STUDENT']), [
   }
 });
 
-// POST /api/submissions/:id/analysis - Trigger Claude analysis
+// Background function to handle Claude analysis
+async function analyzeSubmissionAsync(submissionId, content, title, studentName) {
+  try {
+    console.log(`Starting Claude analysis for submission ${submissionId}`);
+    
+    // Run Claude analysis
+    const analysisResult = await analyzeWithClaude(content, title);
+    
+    // Update submission with analysis results
+    await prisma.submission.update({
+      where: { id: submissionId },
+      data: {
+        analysisResult,
+        currentStage: 'PLAGIARISM_REVIEW'
+      }
+    });
+
+    // Complete analysis stage
+    await prisma.workflowStage.updateMany({
+      where: {
+        submissionId: submissionId,
+        stageName: 'ANALYSIS'
+      },
+      data: {
+        status: 'completed',
+        completedAt: new Date(),
+        notes: 'AI analysis completed successfully'
+      }
+    });
+
+    // Create plagiarism review stage
+    await prisma.workflowStage.create({
+      data: {
+        submissionId: submissionId,
+        stageNumber: 2,
+        stageName: 'PLAGIARISM_REVIEW',
+        status: 'pending',
+        startedAt: new Date()
+      }
+    });
+
+    // Notify reviewers
+    const reviewers = await prisma.user.findMany({
+      where: { role: 'REVIEWER', isActive: true }
+    });
+
+    for (const reviewer of reviewers) {
+      await createNotification({
+        userId: reviewer.id,
+        type: 'ASSIGNMENT',
+        title: 'New Submission for Plagiarism Review',
+        message: `A new submission "${title}" by ${studentName} is ready for plagiarism review.`,
+        metadata: { submissionId }
+      });
+    }
+
+    console.log(`Claude analysis completed for submission ${submissionId}`);
+  } catch (error) {
+    console.error(`Claude analysis failed for submission ${submissionId}:`, error);
+    
+    // Update submission to show analysis failed
+    await prisma.submission.update({
+      where: { id: submissionId },
+      data: {
+        analysisResult: {
+          error: 'Analysis failed',
+          fallback_used: true,
+          message: 'AI analysis encountered an error. Please contact support.',
+          timestamp: new Date().toISOString(),
+          overall_score: 75,
+          actionable_feedback: {
+            top_priorities: [
+              'Please contact support for manual analysis',
+              'Your submission is still in the review queue',
+              'No action needed from your side'
+            ],
+            encouragement: 'Your submission has been received and will be reviewed manually.'
+          }
+        }
+      }
+    });
+
+    // Mark analysis stage as failed but continue workflow
+    await prisma.workflowStage.updateMany({
+      where: {
+        submissionId: submissionId,
+        stageName: 'ANALYSIS'
+      },
+      data: {
+        status: 'completed', // Mark as completed so workflow continues
+        completedAt: new Date(),
+        notes: `Analysis failed but workflow continues: ${error.message}`
+      }
+    });
+
+    // Still move to plagiarism review stage
+    try {
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: { currentStage: 'PLAGIARISM_REVIEW' }
+      });
+
+      await prisma.workflowStage.create({
+        data: {
+          submissionId: submissionId,
+          stageNumber: 2,
+          stageName: 'PLAGIARISM_REVIEW',
+          status: 'pending',
+          startedAt: new Date()
+        }
+      });
+    } catch (stageError) {
+      console.error('Failed to create plagiarism review stage:', stageError);
+    }
+  }
+}
+
+// GET /api/submissions/:id/analysis - Check analysis status
+router.get('/:id/analysis', authenticateToken, [
+  param('id').isUUID().withMessage('Invalid submission ID')
+], async (req, res) => {
+  try {
+    const submission = await prisma.submission.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        title: true,
+        currentStage: true,
+        analysisResult: true,
+        student: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    if (!submission) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    // Check access permissions
+    const hasAccess = 
+      req.user.role === 'ADMIN' ||
+      submission.student.id === req.user.id ||
+      req.user.role === 'EDITOR';
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json({
+      id: submission.id,
+      title: submission.title,
+      currentStage: submission.currentStage,
+      analysisComplete: !!submission.analysisResult,
+      analysisResult: submission.analysisResult
+    });
+  } catch (error) {
+    console.error('Get analysis error:', error);
+    res.status(500).json({ error: 'Failed to fetch analysis' });
+  }
+});
+
+// POST /api/submissions/:id/analysis - Trigger Claude analysis (admin/operations only)
 router.post('/:id/analysis', authenticateToken, requireRole(['ADMIN', 'OPERATIONS']), [
   param('id').isUUID().withMessage('Invalid submission ID')
 ], async (req, res) => {
@@ -296,7 +406,10 @@ router.post('/:id/analysis', authenticateToken, requireRole(['ADMIN', 'OPERATION
 
   try {
     const submission = await prisma.submission.findUnique({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
+      include: {
+        student: { select: { name: true } }
+      }
     });
 
     if (!submission) {
