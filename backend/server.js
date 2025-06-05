@@ -8,7 +8,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const { PrismaClient } = require('@prisma/client');
-const authRoutes = require('./routes/auth');
+const { router: authRoutes, authenticateToken } = require('./routes/auth');
 // Comment out these lines until you create the files:
 // const userRoutes = require('./routes/users');
 // const submissionRoutes = require('./routes/submissions');
