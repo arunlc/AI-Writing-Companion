@@ -6,6 +6,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const notificationRoutes = require('./routes/notifications');
 
 const { PrismaClient } = require('@prisma/client');
 const { router: authRoutes, authenticateToken } = require('./routes/auth');
@@ -14,7 +15,7 @@ const { router: authRoutes, authenticateToken } = require('./routes/auth');
 const submissionRoutes = require('./routes/submissions');
 // const fileRoutes = require('./routes/files');
 // const approvalRoutes = require('./routes/approvals');
-// const eventRoutes = require('./routes/events');
+const eventRoutes = require('./routes/events');  // ✅ UNCOMMENT for Events
 const dashboardRoutes = require('./routes/dashboard');
 // const reviewRoutes = require('./routes/reviews');
 const { createNotification } = require('./services/notificationService');
@@ -79,7 +80,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/submissions', submissionRoutes);
 //app.use('/api/files', fileRoutes);
 //app.use('/api/approvals', approvalRoutes);
-//app.use('/api/events', eventRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 //app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
