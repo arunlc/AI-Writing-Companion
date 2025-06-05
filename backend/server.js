@@ -17,6 +17,7 @@ const { router: authRoutes, authenticateToken } = require('./routes/auth');
 // const eventRoutes = require('./routes/events');
 const dashboardRoutes = require('./routes/dashboard');
 // const reviewRoutes = require('./routes/reviews');
+const { createNotification } = require('./services/notificationService');
 
 const app = express();
 app.set('trust proxy', 1)
@@ -75,7 +76,7 @@ app.get('/health', async (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 //app.use('/api/users', userRoutes);
-//app.use('/api/submissions', submissionRoutes);
+app.use('/api/submissions', submissionRoutes);
 //app.use('/api/files', fileRoutes);
 //app.use('/api/approvals', approvalRoutes);
 //app.use('/api/events', eventRoutes);
