@@ -15,13 +15,3 @@ const EventsList = () => {
     </div>
   );
 };
-
-export { 
-  Profile as default, 
-  SubmissionsList, 
-  NewSubmission, 
-  SubmissionDetails, 
-  UserManagement, 
-  ReviewQueue, 
-  EventsList 
-};
