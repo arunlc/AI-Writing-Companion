@@ -1,3 +1,5 @@
+import React from 'react';
+
 const ReviewQueue = () => {
   return (
     <div className="p-6">
@@ -15,3 +17,5 @@ const ReviewQueue = () => {
     </div>
   );
 };
+
+export default ReviewQueue;
