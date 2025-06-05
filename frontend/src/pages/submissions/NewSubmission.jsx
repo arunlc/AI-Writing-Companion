@@ -1,3 +1,7 @@
+import React, { useState } from 'react';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+
 const NewSubmission = () => {
   const [formData, setFormData] = useState({
     title: '',
@@ -57,3 +61,5 @@ const NewSubmission = () => {
     </div>
   );
 };
+
+export default NewSubmission;
