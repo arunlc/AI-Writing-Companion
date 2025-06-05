@@ -82,6 +82,7 @@ app.use('/api/submissions', submissionRoutes);
 //app.use('/api/events', eventRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 //app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
