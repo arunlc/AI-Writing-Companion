@@ -19,6 +19,7 @@ const dashboardRoutes = require('./routes/dashboard');
 // const reviewRoutes = require('./routes/reviews');
 
 const app = express();
+app.set('trust proxy', 1)
 const prisma = new PrismaClient();
 
 // Security middleware
