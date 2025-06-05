@@ -1,3 +1,5 @@
+import React from 'react';
+
 const EventsList = () => {
   return (
     <div className="p-6">
@@ -15,3 +17,5 @@ const EventsList = () => {
     </div>
   );
 };
+
+export default EventsList;
