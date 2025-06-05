@@ -1,3 +1,6 @@
+import React from 'react';
+import clsx from 'clsx';
+
 const LoadingSpinner = ({ 
   size = 'md', 
   className,
@@ -45,4 +48,4 @@ const LoadingSpinner = ({
   );
 };
 
-export { Button as default, Input, LoadingSpinner };
+export default LoadingSpinner;
