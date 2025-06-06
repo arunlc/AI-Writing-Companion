@@ -1,3 +1,4 @@
+// src/services/api.js
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -113,16 +114,6 @@ export const submissionsAPI = {
   updateStage: (id, stage, notes) => api.put(`/submissions/${id}/stage`, { stage, notes }),
   triggerAnalysis: (id) => api.post(`/submissions/${id}/analysis`),
   archive: (id) => api.delete(`/submissions/${id}`),
-};
-
-export const filesAPI = {
-  upload: (formData) => api.post('/files/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 60000, // 1 minute for file uploads
-  }),
-  getDownloadUrl: (id) => api.get(`/files/${id}`),
-  delete: (id) => api.delete(`/files/${id}`),
-  getBySubmission: (submissionId) => api.get(`/files/submission/${submissionId}`),
 };
 
 export const filesAPI = {
