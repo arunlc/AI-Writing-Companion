@@ -85,6 +85,15 @@ app.use('/api/dashboard', dashboardRoutes);
 //app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+// Root route for health checks
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'AI Writing Companion API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ 
