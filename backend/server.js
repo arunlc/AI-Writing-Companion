@@ -19,6 +19,9 @@ const eventRoutes = require('./routes/events');  // ✅ UNCOMMENT for Events
 const dashboardRoutes = require('./routes/dashboard');
 // const reviewRoutes = require('./routes/reviews');
 const { createNotification } = require('./services/notificationService');
+const fileRoutes = require('./routes/files');
+const userRoutes = require('./routes/users');  
+const reviewRoutes = require('./routes/reviews');
 
 const app = express();
 app.set('trust proxy', 1)
@@ -84,6 +87,9 @@ app.use('/api/events', eventRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 //app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Root route for health checks
 app.get('/', (req, res) => {
