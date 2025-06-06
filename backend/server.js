@@ -21,6 +21,7 @@ const { createNotification } = require('./services/notificationService');
 const fileRoutes = require('./routes/files');
 const userRoutes = require('./routes/users');  
 const reviewRoutes = require('./routes/reviews');
+const healthRoutes = require('./routes/health');
 
 const app = express();
 app.set('trust proxy', 1)
@@ -141,6 +142,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/health', healthRoutes);
 
 // Root route for health checks
 app.get('/', (req, res) => {
