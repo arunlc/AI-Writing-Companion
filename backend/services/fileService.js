@@ -1,40 +1,109 @@
-// backend/services/fileService.js
+// backend/services/fileService.js - ENHANCED VERSION
 const AWS = require('aws-sdk');
 const crypto = require('crypto');
 
 class FileService {
   constructor() {
-    // Configure AWS SDK for Wasabi
+    // ✅ ENHANCED: Better error handling for missing environment variables
+    const requiredEnvVars = [
+      'WASABI_ACCESS_KEY',
+      'WASABI_SECRET_KEY', 
+      'WASABI_BUCKET_NAME',
+      'WASABI_ENDPOINT',
+      'WASABI_REGION'
+    ];
+    
+    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    if (missingVars.length > 0) {
+      console.error('❌ Missing required environment variables:', missingVars);
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+    
+    console.log('✅ All Wasabi environment variables present');
+    
+    // ✅ ENHANCED: Configure AWS SDK for Wasabi with better timeout settings
     this.s3 = new AWS.S3({
-      endpoint: process.env.WASABI_ENDPOINT || 'https://s3.wasabisys.com',
+      endpoint: process.env.WASABI_ENDPOINT,
       accessKeyId: process.env.WASABI_ACCESS_KEY,
       secretAccessKey: process.env.WASABI_SECRET_KEY,
-      region: process.env.WASABI_REGION || 'us-east-1',
-      s3ForcePathStyle: true, // Needed for Wasabi
-      signatureVersion: 'v4'
+      region: process.env.WASABI_REGION,
+      s3ForcePathStyle: true, // ✅ REQUIRED: Needed for Wasabi
+      signatureVersion: 'v4',
+      // ✅ ENHANCED: Better timeout settings for Render
+      httpOptions: {
+        timeout: 20000,        // 20 second timeout
+        connectTimeout: 5000   // 5 second connect timeout
+      },
+      maxRetries: 2,           // ✅ REDUCED: Fewer retries on Render
+      retryDelayOptions: {
+        customBackoff: function(retryCount) {
+          return Math.pow(2, retryCount) * 1000; // exponential backoff
+        }
+      }
     });
     
-    this.bucket = process.env.WASABI_BUCKET_NAME || 'ai-writing-companion-files';
+    this.bucket = process.env.WASABI_BUCKET_NAME;
+    
+    console.log('✅ Wasabi S3 client configured:', {
+      endpoint: process.env.WASABI_ENDPOINT,
+      region: process.env.WASABI_REGION,
+      bucket: this.bucket
+    });
   }
 
-  // Upload file to Wasabi
+  // ✅ ENHANCED: Upload file to Wasabi with better error handling
   async uploadToWasabi(fileName, fileBuffer, mimeType) {
+    console.log('☁️ Starting Wasabi upload:', {
+      fileName,
+      size: fileBuffer.length,
+      mimeType
+    });
+    
     try {
+      // ✅ ENHANCED: Validate inputs
+      if (!fileName) {
+        throw new Error('File name is required');
+      }
+      if (!fileBuffer || fileBuffer.length === 0) {
+        throw new Error('File buffer is empty');
+      }
+      if (!mimeType) {
+        throw new Error('MIME type is required');
+      }
+      
       const params = {
         Bucket: this.bucket,
         Key: fileName,
         Body: fileBuffer,
         ContentType: mimeType,
-        ServerSideEncryption: 'AES256', // Enable server-side encryption
+        ServerSideEncryption: 'AES256',
         Metadata: {
           'uploaded-at': new Date().toISOString(),
-          'content-type': mimeType
-        }
+          'content-type': mimeType,
+          'file-size': fileBuffer.length.toString()
+        },
+        // ✅ ENHANCED: Add cache control for better performance
+        CacheControl: 'max-age=31536000', // 1 year
+        // ✅ ENHANCED: Add content disposition
+        ContentDisposition: `attachment; filename="${fileName.split('/').pop()}"`
       };
+
+      console.log('📤 Uploading to Wasabi with params:', {
+        Bucket: params.Bucket,
+        Key: params.Key,
+        ContentType: params.ContentType,
+        BodySize: params.Body.length
+      });
 
       const result = await this.s3.upload(params).promise();
       
-      console.log(`File uploaded successfully: ${fileName}`);
+      console.log('✅ Wasabi upload successful:', {
+        location: result.Location,
+        etag: result.ETag,
+        bucket: result.Bucket,
+        key: result.Key
+      });
+      
       return {
         location: result.Location,
         etag: result.ETag,
@@ -42,34 +111,70 @@ class FileService {
         key: result.Key
       };
     } catch (error) {
-      console.error('Wasabi upload error:', error);
-      throw new Error(`Failed to upload file: ${error.message}`);
+      console.error('❌ Wasabi upload error:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        fileName
+      });
+      
+      // ✅ ENHANCED: Better error categorization
+      if (error.code === 'NetworkingError' || error.code === 'TimeoutError') {
+        throw new Error(`Network error uploading to storage: ${error.message}`);
+      } else if (error.code === 'AccessDenied') {
+        throw new Error('Storage access denied. Please check credentials.');
+      } else if (error.code === 'NoSuchBucket') {
+        throw new Error(`Storage bucket not found: ${this.bucket}`);
+      } else {
+        throw new Error(`Storage upload failed: ${error.message}`);
+      }
     }
   }
 
-  // Generate signed URL for file download
+  // ✅ ENHANCED: Generate signed URL with better error handling
   async getSignedUrl(fileName, expiresIn = 3600) {
+    console.log('🔗 Generating signed URL for:', fileName);
+    
     try {
+      if (!fileName) {
+        throw new Error('File name is required');
+      }
+      
       const params = {
         Bucket: this.bucket,
         Key: fileName,
-        Expires: expiresIn, // URL expires in seconds (default: 1 hour)
+        Expires: expiresIn, // URL expires in seconds
         ResponseContentDisposition: 'attachment' // Force download
       };
 
       const url = await this.s3.getSignedUrlPromise('getObject', params);
       
-      console.log(`Generated signed URL for: ${fileName}`);
+      console.log('✅ Signed URL generated successfully for:', fileName);
       return url;
     } catch (error) {
-      console.error('Signed URL generation error:', error);
-      throw new Error(`Failed to generate download URL: ${error.message}`);
+      console.error('❌ Signed URL generation error:', {
+        message: error.message,
+        code: error.code,
+        fileName
+      });
+      
+      if (error.code === 'NoSuchKey') {
+        throw new Error('File not found in storage');
+      } else {
+        throw new Error(`Failed to generate download URL: ${error.message}`);
+      }
     }
   }
 
-  // Delete file from Wasabi
+  // ✅ ENHANCED: Delete file with better error handling
   async deleteFromWasabi(fileName) {
+    console.log('🗑️ Deleting from Wasabi:', fileName);
+    
     try {
+      if (!fileName) {
+        throw new Error('File name is required');
+      }
+      
       const params = {
         Bucket: this.bucket,
         Key: fileName
@@ -77,195 +182,82 @@ class FileService {
 
       await this.s3.deleteObject(params).promise();
       
-      console.log(`File deleted successfully: ${fileName}`);
+      console.log('✅ File deleted successfully:', fileName);
       return true;
     } catch (error) {
-      console.error('Wasabi deletion error:', error);
+      console.error('❌ Wasabi deletion error:', {
+        message: error.message,
+        code: error.code,
+        fileName
+      });
+      
+      // Don't throw for file not found - it's already "deleted"
+      if (error.code === 'NoSuchKey') {
+        console.log('ℹ️ File already deleted or not found:', fileName);
+        return true;
+      }
+      
       throw new Error(`Failed to delete file: ${error.message}`);
     }
   }
 
-  // Check if file exists
-  async fileExists(fileName) {
-    try {
-      const params = {
-        Bucket: this.bucket,
-        Key: fileName
-      };
-
-      await this.s3.headObject(params).promise();
-      return true;
-    } catch (error) {
-      if (error.code === 'NotFound') {
-        return false;
-      }
-      throw new Error(`Failed to check file existence: ${error.message}`);
-    }
-  }
-
-  // Get file metadata
-  async getFileMetadata(fileName) {
-    try {
-      const params = {
-        Bucket: this.bucket,
-        Key: fileName
-      };
-
-      const result = await this.s3.headObject(params).promise();
-      
-      return {
-        contentLength: result.ContentLength,
-        contentType: result.ContentType,
-        lastModified: result.LastModified,
-        etag: result.ETag,
-        metadata: result.Metadata
-      };
-    } catch (error) {
-      console.error('Get metadata error:', error);
-      throw new Error(`Failed to get file metadata: ${error.message}`);
-    }
-  }
-
-  // List files in a directory
-  async listFiles(prefix = '', maxKeys = 1000) {
-    try {
-      const params = {
-        Bucket: this.bucket,
-        Prefix: prefix,
-        MaxKeys: maxKeys
-      };
-
-      const result = await this.s3.listObjectsV2(params).promise();
-      
-      return {
-        files: result.Contents || [],
-        totalCount: result.KeyCount,
-        isTruncated: result.IsTruncated,
-        nextContinuationToken: result.NextContinuationToken
-      };
-    } catch (error) {
-      console.error('List files error:', error);
-      throw new Error(`Failed to list files: ${error.message}`);
-    }
-  }
-
-  // Copy file within the bucket
-  async copyFile(sourceKey, destinationKey) {
-    try {
-      const params = {
-        Bucket: this.bucket,
-        CopySource: `${this.bucket}/${sourceKey}`,
-        Key: destinationKey
-      };
-
-      const result = await this.s3.copyObject(params).promise();
-      
-      console.log(`File copied from ${sourceKey} to ${destinationKey}`);
-      return result;
-    } catch (error) {
-      console.error('Copy file error:', error);
-      throw new Error(`Failed to copy file: ${error.message}`);
-    }
-  }
-
-  // Generate unique file name to avoid conflicts
-  generateUniqueFileName(originalName, submissionId, fileType) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const randomSuffix = crypto.randomBytes(4).toString('hex');
-    const extension = originalName.split('.').pop();
-    
-    return `${submissionId}/${fileType}/${timestamp}-${randomSuffix}.${extension}`;
-  }
-
-  // Validate file type
-  isValidFileType(mimeType) {
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp'
-    ];
-    
-    return allowedTypes.includes(mimeType);
-  }
-
-  // Get file type category
-  getFileTypeCategory(mimeType) {
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType === 'application/pdf') return 'pdf';
-    if (mimeType.includes('word') || mimeType === 'text/plain') return 'document';
-    return 'other';
-  }
-
-  // Format file size for display
-  formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  // Cleanup old files (can be run as a cron job)
-  async cleanupOldFiles(daysOld = 90) {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-      
-      const listParams = {
-        Bucket: this.bucket
-      };
-      
-      const objects = await this.s3.listObjectsV2(listParams).promise();
-      const filesToDelete = [];
-      
-      for (const object of objects.Contents || []) {
-        if (object.LastModified < cutoffDate) {
-          filesToDelete.push({ Key: object.Key });
-        }
-      }
-      
-      if (filesToDelete.length > 0) {
-        const deleteParams = {
-          Bucket: this.bucket,
-          Delete: {
-            Objects: filesToDelete,
-            Quiet: false
-          }
-        };
-        
-        const result = await this.s3.deleteObjects(deleteParams).promise();
-        console.log(`Cleaned up ${result.Deleted?.length || 0} old files`);
-        
-        return {
-          deletedCount: result.Deleted?.length || 0,
-          errors: result.Errors || []
-        };
-      }
-      
-      return { deletedCount: 0, errors: [] };
-    } catch (error) {
-      console.error('Cleanup error:', error);
-      throw new Error(`Failed to cleanup old files: ${error.message}`);
-    }
-  }
-
-  // Health check for Wasabi connection
+  // ✅ ENHANCED: Health check with connection test
   async healthCheck() {
+    console.log('🏥 Performing Wasabi health check...');
+    
     try {
+      // Test bucket access
       await this.s3.headBucket({ Bucket: this.bucket }).promise();
-      return { status: 'healthy', message: 'Wasabi connection successful' };
+      
+      console.log('✅ Wasabi health check passed');
+      return { 
+        status: 'healthy', 
+        message: 'Wasabi connection successful',
+        bucket: this.bucket,
+        endpoint: process.env.WASABI_ENDPOINT
+      };
     } catch (error) {
-      console.error('Wasabi health check failed:', error);
+      console.error('❌ Wasabi health check failed:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode
+      });
+      
       return { 
         status: 'unhealthy', 
-        message: `Wasabi connection failed: ${error.message}` 
+        message: `Wasabi connection failed: ${error.message}`,
+        bucket: this.bucket,
+        endpoint: process.env.WASABI_ENDPOINT
+      };
+    }
+  }
+
+  // ✅ NEW: Test upload function for debugging
+  async testUpload() {
+    console.log('🧪 Testing Wasabi upload...');
+    
+    try {
+      const testData = Buffer.from('Test file content for health check');
+      const testFileName = `test/health-check-${Date.now()}.txt`;
+      
+      // Upload test file
+      const uploadResult = await this.uploadToWasabi(testFileName, testData, 'text/plain');
+      console.log('✅ Test upload successful');
+      
+      // Delete test file
+      await this.deleteFromWasabi(testFileName);
+      console.log('✅ Test file cleaned up');
+      
+      return { 
+        status: 'success', 
+        message: 'Upload test completed successfully',
+        uploadResult
+      };
+    } catch (error) {
+      console.error('❌ Upload test failed:', error);
+      return { 
+        status: 'failed', 
+        message: `Upload test failed: ${error.message}`
       };
     }
   }
@@ -284,18 +276,10 @@ const getSignedUrl = (fileName, expiresIn) =>
 const deleteFromWasabi = (fileName) => 
   fileService.deleteFromWasabi(fileName);
 
-const fileExists = (fileName) => 
-  fileService.fileExists(fileName);
-
-const getFileMetadata = (fileName) => 
-  fileService.getFileMetadata(fileName);
-
 module.exports = {
   FileService,
   fileService,
   uploadToWasabi,
   getSignedUrl,
-  deleteFromWasabi,
-  fileExists,
-  getFileMetadata
+  deleteFromWasabi
 };
