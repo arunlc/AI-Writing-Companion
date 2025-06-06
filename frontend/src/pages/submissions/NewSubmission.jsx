@@ -234,7 +234,7 @@ const NewSubmission = () => {
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <h3 className="text-sm font-medium text-blue-900 mb-2">What happens next?</h3>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Your writing will be analyzed by our AI engine for grammar, structure, and style</li>
+                <li>• Your writing will be analyzed by an AI engine for grammar, structure, and style</li>
                 <li>• The submission will be sent for plagiarism review</li>
                 <li>• You'll be assigned to an editor for personalized feedback</li>
                 <li>• You can track progress through all 7 stages in your submissions list</li>
