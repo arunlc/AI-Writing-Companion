@@ -26,6 +26,59 @@ const app = express();
 app.set('trust proxy', 1)
 const prisma = new PrismaClient();
 
+// Add these lines to your backend/server.js BEFORE other middleware
+
+// ✅ ENHANCED: Better body parsing limits for file uploads
+app.use(express.json({ 
+  limit: '10mb',  // ✅ REDUCED from default for Render compatibility
+  verify: (req, res, buf) => {
+    console.log('📊 JSON body size:', buf.length, 'bytes');
+  }
+}));
+
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb',  // ✅ REDUCED from default
+  verify: (req, res, buf) => {
+    console.log('📊 URL-encoded body size:', buf.length, 'bytes');
+  }
+}));
+
+// ✅ ENHANCED: Request timeout handling for Render
+app.use((req, res, next) => {
+  // Set a timeout for all requests (25 seconds - less than Render's 30s limit)
+  req.setTimeout(25000, () => {
+    console.error('⏰ Request timeout for:', req.url);
+    if (!res.headersSent) {
+      res.status(408).json({ 
+        error: 'Request timeout. Please try again with a smaller file.',
+        code: 'REQUEST_TIMEOUT'
+      });
+    }
+  });
+  
+  res.setTimeout(25000, () => {
+    console.error('⏰ Response timeout for:', req.url);
+    if (!res.headersSent) {
+      res.status(408).json({ 
+        error: 'Response timeout. Please try again.',
+        code: 'RESPONSE_TIMEOUT'
+      });
+    }
+  });
+  
+  next();
+});
+
+// ✅ ENHANCED: Better CORS for file uploads
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+  maxAge: 86400 // 24 hours
+}));
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
