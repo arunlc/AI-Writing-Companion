@@ -13,7 +13,7 @@ const { router: authRoutes, authenticateToken } = require('./routes/auth');
 // Comment out these lines until you create the files:
 // const userRoutes = require('./routes/users');
 const submissionRoutes = require('./routes/submissions');
-// const fileRoutes = require('./routes/files');
+const fileRoutes = require('./routes/files');
 // const approvalRoutes = require('./routes/approvals');
 const eventRoutes = require('./routes/events');  // ✅ UNCOMMENT for Events
 const dashboardRoutes = require('./routes/dashboard');
@@ -78,7 +78,7 @@ app.get('/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 //app.use('/api/users', userRoutes);
 app.use('/api/submissions', submissionRoutes);
-//app.use('/api/files', fileRoutes);
+app.use('/api/files', fileRoutes);
 //app.use('/api/approvals', approvalRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/dashboard', dashboardRoutes);
