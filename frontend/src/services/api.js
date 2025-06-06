@@ -125,6 +125,20 @@ export const filesAPI = {
   getBySubmission: (submissionId) => api.get(`/files/submission/${submissionId}`),
 };
 
+export const filesAPI = {
+  upload: (formData) => api.post('/files/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000, // 1 minute for file uploads
+  }),
+  getDownloadUrl: (id) => api.get(`/files/${id}`),
+  delete: (id) => api.delete(`/files/${id}`),
+  getBySubmission: (submissionId) => api.get(`/files/submission/${submissionId}`),
+  approve: (fileId, approved, notes = '') => api.put(`/files/${fileId}/approve`, { 
+    approved, 
+    notes 
+  }),
+};
+
 export const approvalsAPI = {
   submit: (data) => api.post('/approvals', data),
   getPending: () => api.get('/approvals/pending'),
