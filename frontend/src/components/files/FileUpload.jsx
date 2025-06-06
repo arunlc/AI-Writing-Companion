@@ -1,4 +1,4 @@
-// src/components/files/FileUpload.jsx
+// frontend/src/components/files/FileUpload.jsx - ENHANCED VERSION
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import { filesAPI } from '../../services/api';
@@ -20,7 +20,7 @@ const FileUpload = ({
   fileType = 'ATTACHMENT', 
   onUploadComplete,
   accept = '',
-  maxSize = 50 * 1024 * 1024, // 50MB
+  maxSize = 10 * 1024 * 1024, // ✅ REDUCED: 10MB limit (was 50MB)
   multiple = false,
   className = ''
 }) => {
@@ -30,6 +30,7 @@ const FileUpload = ({
   const fileInputRef = useRef(null);
   const queryClient = useQueryClient();
 
+  // ✅ ENHANCED: Better upload mutation with error handling
   const uploadMutation = useMutation(filesAPI.upload, {
     onSuccess: (data, variables) => {
       const fileName = variables.get('file').name;
@@ -57,7 +58,22 @@ const FileUpload = ({
         [fileName]: { status: 'error', progress: 0 }
       }));
       
-      const errorMessage = error.response?.data?.error || 'Upload failed';
+      // ✅ ENHANCED: Better error message handling
+      const errorData = error.response?.data;
+      let errorMessage = 'Upload failed';
+      
+      if (errorData?.code === 'FILE_TOO_LARGE') {
+        errorMessage = 'File too large. Maximum size is 10MB.';
+      } else if (errorData?.code === 'INVALID_FILE_TYPE') {
+        errorMessage = 'File type not allowed. Please check supported formats.';
+      } else if (errorData?.code === 'UPLOAD_TIMEOUT') {
+        errorMessage = 'Upload timeout. Please try with a smaller file.';
+      } else if (errorData?.code === 'STORAGE_CONFIG_ERROR') {
+        errorMessage = 'Storage configuration error. Please contact support.';
+      } else if (errorData?.error) {
+        errorMessage = errorData.error;
+      }
+      
       toast.error(`Failed to upload "${fileName}": ${errorMessage}`);
     }
   });
@@ -88,17 +104,41 @@ const FileUpload = ({
     }
   };
 
+  // ✅ ENHANCED: Better file validation
   const handleFiles = (files) => {
+    console.log('📁 Processing selected files:', files.length);
+    
     const validFiles = files.filter(file => {
+      console.log('🔍 Validating file:', file.name, file.size, file.type);
+      
       // Check file size
       if (file.size > maxSize) {
         toast.error(`File "${file.name}" is too large. Maximum size is ${formatFileSize(maxSize)}.`);
         return false;
       }
       
+      if (file.size === 0) {
+        toast.error(`File "${file.name}" is empty.`);
+        return false;
+      }
+      
       // Check file type if accept prop is provided
       if (accept && !isFileTypeAccepted(file, accept)) {
         toast.error(`File type not allowed for "${file.name}".`);
+        return false;
+      }
+      
+      // ✅ ENHANCED: Additional validation for common issues
+      if (file.name.length > 255) {
+        toast.error(`File name "${file.name}" is too long. Maximum 255 characters.`);
+        return false;
+      }
+      
+      // Check for potentially dangerous file extensions
+      const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.vbs', '.js'];
+      const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+      if (dangerousExtensions.includes(fileExtension)) {
+        toast.error(`File type "${fileExtension}" is not allowed for security reasons.`);
         return false;
       }
       
@@ -130,41 +170,112 @@ const FileUpload = ({
     });
   };
 
+  // ✅ ENHANCED: Upload with real progress tracking
   const uploadFile = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('submissionId', submissionId);
     formData.append('fileType', fileType);
 
+    console.log('📤 Starting upload for:', file.name);
+
     setUploadProgress(prev => ({
       ...prev,
-      [file.name]: { status: 'uploading', progress: 0 }
+      [file.name]: { status: 'uploading', progress: 10 }
     }));
 
-    // Simulate progress for better UX (real progress would need XMLHttpRequest)
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        const current = prev[file.name]?.progress || 0;
-        if (current < 90) {
-          return {
-            ...prev,
-            [file.name]: { status: 'uploading', progress: current + 10 }
-          };
-        }
-        return prev;
-      });
-    }, 200);
-
     try {
-      await uploadMutation.mutateAsync(formData);
-    } finally {
-      clearInterval(progressInterval);
+      // ✅ ENHANCED: Create XMLHttpRequest for real progress tracking
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 90); // Reserve 10% for processing
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.name]: { status: 'uploading', progress: Math.max(10, percentComplete) }
+            }));
+          }
+        });
+        
+        // Handle completion
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.name]: { status: 'processing', progress: 95 }
+            }));
+            
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve({ data: response });
+            } catch (e) {
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            try {
+              const errorResponse = JSON.parse(xhr.responseText);
+              reject({ response: { data: errorResponse, status: xhr.status } });
+            } catch (e) {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          }
+        });
+        
+        // Handle errors
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('timeout', () => {
+          reject(new Error('Upload timeout'));
+        });
+        
+        // Set timeout
+        xhr.timeout = 25000; // 25 seconds
+        
+        // Get auth token
+        const token = localStorage.getItem('token');
+        
+        // Configure request
+        xhr.open('POST', `${import.meta.env.VITE_API_URL || '/api'}/files/upload`);
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+        
+        // Start upload
+        xhr.send(formData);
+      });
+    } catch (error) {
+      console.error('❌ Upload error for:', file.name, error);
+      throw error;
     }
   };
 
   const uploadAllFiles = async () => {
+    console.log('📤 Starting batch upload for', selectedFiles.length, 'files');
+    
     for (const file of selectedFiles) {
-      await uploadFile(file);
+      try {
+        const result = await uploadFile(file);
+        
+        // Process completion
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: { status: 'completed', progress: 100 }
+        }));
+        
+        // Handle success via mutation callbacks
+        uploadMutation.onSuccess(result, new FormData());
+        
+      } catch (error) {
+        // Handle error via mutation callbacks
+        const formData = new FormData();
+        formData.append('file', file);
+        uploadMutation.onError(error, formData);
+      }
     }
   };
 
@@ -200,6 +311,37 @@ const FileUpload = ({
       'ATTACHMENT': 'Attachment'
     };
     return labels[type] || type;
+  };
+
+  // ✅ ENHANCED: Better progress display
+  const getProgressColor = (status, progress) => {
+    switch (status) {
+      case 'uploading':
+        return 'bg-blue-600';
+      case 'processing':
+        return 'bg-yellow-600';
+      case 'completed':
+        return 'bg-green-600';
+      case 'error':
+        return 'bg-red-600';
+      default:
+        return 'bg-gray-600';
+    }
+  };
+
+  const getProgressLabel = (status, progress) => {
+    switch (status) {
+      case 'uploading':
+        return `Uploading... ${progress}%`;
+      case 'processing':
+        return 'Processing...';
+      case 'completed':
+        return 'Completed';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Pending';
+    }
   };
 
   return (
@@ -251,6 +393,7 @@ const FileUpload = ({
               <p>Allowed types: {accept.replace(/,/g, ', ')}</p>
             )}
             {multiple && <p>Multiple files allowed</p>}
+            <p className="text-green-600">✅ Files upload to secure cloud storage</p>
           </div>
         </div>
       </div>
@@ -281,13 +424,26 @@ const FileUpload = ({
                         {formatFileSize(file.size)} • {file.type || 'Unknown type'}
                       </p>
                       
-                      {/* Progress Bar */}
-                      {progress && progress.status === 'uploading' && (
-                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${progress.progress}%` }}
-                          />
+                      {/* ✅ ENHANCED: Better progress display */}
+                      {progress && (
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">
+                              {getProgressLabel(progress.status, progress.progress)}
+                            </span>
+                            {progress.status === 'uploading' && (
+                              <span className="text-gray-600">{progress.progress}%</span>
+                            )}
+                          </div>
+                          <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={clsx(
+                                'h-2 rounded-full transition-all duration-300',
+                                getProgressColor(progress.status, progress.progress)
+                              )}
+                              style={{ width: `${progress.progress}%` }}
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -355,6 +511,17 @@ const FileUpload = ({
           </div>
         </div>
       )}
+
+      {/* ✅ ENHANCED: Better help text with troubleshooting */}
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="text-sm font-medium text-blue-900 mb-2">Upload Guidelines</h4>
+        <div className="text-xs text-blue-800 space-y-1">
+          <p>• <strong>Max size:</strong> {formatFileSize(maxSize)} per file</p>
+          <p>• <strong>Formats:</strong> PDF, Word documents, images, text files</p>
+          <p>• <strong>Tips:</strong> Smaller files upload faster and more reliably</p>
+          <p>• <strong>Issues?</strong> Try refreshing the page or using a smaller file</p>
+        </div>
+      </div>
     </div>
   );
 };
