@@ -1,3 +1,4 @@
+// src/pages/submissions/SubmissionDetails.jsx
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -14,10 +15,14 @@ import {
   ChartBarIcon,
   BeakerIcon,
   EyeIcon,
-  PencilIcon
+  PencilIcon,
+  CloudArrowUpIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline';
 import Button from '../../components/ui/Button';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import FileUpload from '../../components/files/FileUpload';
+import FileManager from '../../components/files/FileManager';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
@@ -26,6 +31,8 @@ const SubmissionDetails = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showFullContent, setShowFullContent] = useState(false);
+  const [selectedFileType, setSelectedFileType] = useState('ATTACHMENT');
+  const [showFileUpload, setShowFileUpload] = useState(false);
 
   const { data, isLoading, error } = useQuery(
     ['submission', id],
@@ -61,6 +68,31 @@ const SubmissionDetails = () => {
       }
     }
   );
+
+  // Helper functions
+  const getAcceptedFileTypes = (fileType) => {
+    const typeMap = {
+      'SUBMISSION_CONTENT': '.doc,.docx,.txt,.pdf',
+      'PDF_SOFT_COPY': '.pdf',
+      'COVER_DESIGN': '.jpg,.jpeg,.png,.gif,.pdf,.ai,.psd',
+      'ATTACHMENT': '.pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif'
+    };
+    return typeMap[fileType] || '.pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif';
+  };
+
+  const canUploadFiles = () => {
+    return submission?.studentId === user?.id || 
+           user?.role === 'ADMIN' || 
+           user?.role === 'OPERATIONS' ||
+           (user?.role === 'EDITOR' && submission?.editorId === user?.id);
+  };
+
+  const handleFileUploadComplete = (file) => {
+    console.log('File uploaded:', file);
+    setShowFileUpload(false);
+    // Refresh submission data to show new file
+    queryClient.invalidateQueries(['submission', id]);
+  };
 
   if (isLoading) {
     return (
@@ -422,6 +454,61 @@ const SubmissionDetails = () => {
                 </div>
               </div>
             )}
+
+            {/* File Management Section */}
+            <div className="bg-white p-6 rounded-lg border">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Files & Attachments</h3>
+                {canUploadFiles() && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowFileUpload(!showFileUpload)}
+                  >
+                    <CloudArrowUpIcon className="h-4 w-4 mr-1" />
+                    {showFileUpload ? 'Hide Upload' : 'Upload File'}
+                  </Button>
+                )}
+              </div>
+              
+              {/* File Manager */}
+              <FileManager 
+                submissionId={submission.id} 
+                allowUploads={canUploadFiles()}
+              />
+              
+              {/* File Upload Section */}
+              {showFileUpload && canUploadFiles() && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      File Type
+                    </label>
+                    <select
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                      value={selectedFileType}
+                      onChange={(e) => setSelectedFileType(e.target.value)}
+                    >
+                      <option value="ATTACHMENT">Attachment</option>
+                      <option value="SUBMISSION_CONTENT">Submission Content</option>
+                      <option value="PDF_SOFT_COPY">PDF Soft Copy</option>
+                      <option value="COVER_DESIGN">Cover Design</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Choose the appropriate category for your file
+                    </p>
+                  </div>
+                  
+                  <FileUpload
+                    submissionId={submission.id}
+                    fileType={selectedFileType}
+                    accept={getAcceptedFileTypes(selectedFileType)}
+                    onUploadComplete={handleFileUploadComplete}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -528,26 +615,6 @@ const SubmissionDetails = () => {
                     <option value="EVENT_PLANNING">Event Planning</option>
                     <option value="COMPLETED">Completed</option>
                   </select>
-                </div>
-              </div>
-            )}
-
-            {/* Files */}
-            {submission.fileAttachments?.length > 0 && (
-              <div className="bg-white p-6 rounded-lg border">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Files</h3>
-                <div className="space-y-2">
-                  {submission.fileAttachments.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div className="flex items-center">
-                        <DocumentTextIcon className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{file.originalName}</span>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {(file.fileSize / 1024).toFixed(1)} KB
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
