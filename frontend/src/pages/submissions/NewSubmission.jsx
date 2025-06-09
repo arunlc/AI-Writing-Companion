@@ -1,4 +1,4 @@
-// frontend/src/pages/submissions/NewSubmission.jsx - FIXED VERSION
+// frontend/src/pages/submissions/NewSubmission.jsx - REAL TEXT EXTRACTION
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { submissionsAPI, filesAPI } from '../../services/api';
@@ -12,7 +12,8 @@ import {
   CheckCircleIcon, 
   ExclamationTriangleIcon,
   EyeIcon,
-  BeakerIcon
+  BeakerIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -28,6 +29,7 @@ const NewSubmission = () => {
   const [uploadedDocument, setUploadedDocument] = useState(null);
   const [extractedContent, setExtractedContent] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState(null);
   const [contentSource, setContentSource] = useState(''); // 'pasted' or 'document'
   const navigate = useNavigate();
 
@@ -52,90 +54,79 @@ const NewSubmission = () => {
     }
   };
 
-  // ✅ FIXED: Extract text from uploaded document
+  // ✅ REAL TEXT EXTRACTION - Call backend API
   const extractTextFromDocument = async (uploadedFile) => {
     setIsExtracting(true);
+    setExtractionError(null);
     
     try {
-      // Simulate text extraction (replace with actual backend call)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('📝 Starting real text extraction for:', uploadedFile.originalName);
       
-      // ✅ FIXED: Use uploadedFile.originalName instead of uploadedFile.name
-      const fileName = uploadedFile.originalName || '';
+      // Check if file already has extracted text in upload response
+      if (uploadedFile.extractedText) {
+        console.log('✅ Using text from upload response');
+        setExtractedContent(uploadedFile.extractedText);
+        setContentSource('document');
+        
+        // Auto-fill content if textarea is empty
+        if (!formData.content.trim()) {
+          setFormData(prev => ({
+            ...prev,
+            content: uploadedFile.extractedText
+          }));
+        }
+        
+        toast.success(`Text extracted successfully! ${uploadedFile.extractionMetadata?.wordCount || 'Unknown'} words found.`);
+        return;
+      }
+
+      // If no extracted text in upload response, call extraction API
+      console.log('📞 Calling text extraction API...');
+      const response = await filesAPI.get(`${uploadedFile.id}/extract-text`);
       
-      // Mock extracted content based on file type
-      let mockContent = '';
-      if (fileName.toLowerCase().includes('spy') || 
-          fileName.toLowerCase().includes('thriller') || 
-          fileName.toLowerCase().includes('shadow') || 
-          fileName.toLowerCase().includes('protocol')) {
-        mockContent = `The Shadow's Edge
-
-Agent Sarah Chen crouched behind the marble pillar, her breath barely audible in the silent museum corridor. The artifact she'd been tracking for months—the encrypted drive containing state secrets—lay just twenty feet away in the display case. 
-
-But something was wrong. The security system she'd hacked showed no guards, yet she could sense eyes watching her every movement. The hair on the back of her neck stood up as footsteps echoed from the adjacent hall.
-
-"I know you're here, Agent Chen," a familiar voice called out from the darkness. It was Viktor Kozlov, the Russian operative she thought she'd left for dead in Prague. "The drive you're after? It's not what you think it is."
-
-Sarah's mind raced. How had she found her? More importantly, how was he still alive? She reached for the encrypted communicator in her jacket, but her fingers found only empty fabric. Her backup team was compromised.
-
-The moonlight streaming through the skylight cast eerie shadows across the ancient artifacts. Each piece told a story of civilizations past, but tonight, they would witness the writing of a new chapter in the world of international espionage.
-
-She had two choices: retreat and lose the intelligence that could prevent a global crisis, or advance knowing it might be her final mission. The sound of Viktor's footsteps grew closer, and Sarah made her decision.
-
-In one fluid motion, she rolled from behind the pillar and sprinted toward the display case, her lockpicks already in hand. The laser grid activated, painting red lines across her path, but she'd memorized the pattern. Duck, roll, leap—she moved like a dancer through the deadly light show.
-
-The drive was within reach when the lights suddenly blazed on, revealing not just Viktor, but an entire team of armed operatives surrounding her. Sarah smiled grimly. She'd walked into a trap, but she'd been preparing for this moment her entire career.
-
-"Hello, Viktor," she said, palming the drive while keeping her hands visible. "I was wondering when you'd show up to this party."
-
-The extraction point was still three miles away through hostile territory. Sarah calculated her odds: twelve armed men, one exit, and thirty seconds before backup arrived. The drive in her pocket contained information that could save thousands of lives, but only if she could get it to safety.
-
-She looked at Viktor and smiled. "Shall we dance?"`;
+      if (response.data.extractedText) {
+        const extractedText = response.data.extractedText;
+        const metadata = response.data.extractionMetadata;
+        
+        setExtractedContent(extractedText);
+        setContentSource('document');
+        
+        // Auto-fill content if textarea is empty
+        if (!formData.content.trim()) {
+          setFormData(prev => ({
+            ...prev,
+            content: extractedText
+          }));
+        }
+        
+        const wordCount = metadata?.wordCount || extractedText.split(/\s+/).length;
+        toast.success(`Text extracted successfully! ${wordCount} words found using ${metadata?.extractionMethod || 'text extraction'}.`);
       } else {
-        mockContent = `My Summer Adventure
-
-This summer was the most exciting time of my life! I went on a camping trip with my family to Yellowstone National Park, and it was absolutely amazing.
-
-The first thing we did was set up our tent near a beautiful lake. The water was so clear you could see fish swimming at the bottom. My little brother tried to catch one with his bare hands, but of course, that didn't work out very well!
-
-On our second day, we went hiking on a trail called the Grand Loop. It was pretty challenging, but the views were incredible. We saw geysers shooting water high into the sky, and our guide told us about Old Faithful, which erupts every 90 minutes like clockwork.
-
-The wildlife was unbelievable. We spotted elk, bison, and even a black bear from a safe distance. My mom was both excited and terrified when the bear appeared. She made us all stick together and walk slowly away, just like the park rangers had taught us.
-
-One of my favorite memories was sitting around the campfire at night, roasting marshmallows and telling stories. My dad told us about constellations, and we tried to spot them in the incredibly dark sky. You can see so many more stars when you're away from city lights!
-
-The camping experience taught me a lot about nature and taking care of our environment. It also showed me that some of the best times don't involve screens or technology – just spending time with family and appreciating the natural world around us.
-
-I can't wait to go back next summer and explore more of this amazing place!`;
+        throw new Error('No text content found in document');
       }
-      
-      setExtractedContent(mockContent);
-      setContentSource('document');
-      
-      // Auto-fill content if textarea is empty
-      if (!formData.content.trim()) {
-        setFormData(prev => ({
-          ...prev,
-          content: mockContent
-        }));
-      }
-      
-      toast.success('Text extracted from document successfully!');
       
     } catch (error) {
-      console.error('Text extraction error:', error);
-      toast.error('Failed to extract text from document. You can still paste content manually.');
+      console.error('❌ Text extraction error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to extract text from document';
+      setExtractionError(errorMessage);
+      toast.error(`Text extraction failed: ${errorMessage}`);
     } finally {
       setIsExtracting(false);
     }
   };
 
+  // Retry text extraction
+  const retryExtraction = async () => {
+    if (uploadedDocument) {
+      await extractTextFromDocument(uploadedDocument);
+    }
+  };
+
   const handleFileUploadComplete = useCallback(async (uploadedFile) => {
-    console.log('Document uploaded:', uploadedFile);
+    console.log('📁 Document uploaded:', uploadedFile);
     setUploadedDocument(uploadedFile);
     
-    // Only extract if it's a text document
+    // Check if it's a text document that supports extraction
     const textFileTypes = [
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
       'application/msword', // .doc
@@ -224,8 +215,9 @@ I can't wait to go back next summer and explore more of this amazing place!`;
       
       const response = await submissionsAPI.create({
         title: formData.title.trim(),
-        content: analysisContent, // Use the smart-detected content
-        contentSource: contentSource // Track where content came from
+        content: analysisContent,
+        contentSource: contentSource,
+        ...(uploadedDocument && { attachedFileId: uploadedDocument.id })
       });
       
       toast.success('Submission created successfully! AI analysis is starting...');
@@ -263,7 +255,7 @@ I can't wait to go back next summer and explore more of this amazing place!`;
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Create New Submission</h1>
           <p className="text-gray-600">
-            Upload your document or paste your content. The AI will analyze whichever content you choose.
+            Upload your document for automatic text extraction, or paste your content manually. The AI will analyze whichever content you choose.
           </p>
         </div>
         
@@ -294,6 +286,7 @@ I can't wait to go back next summer and explore more of this amazing place!`;
                 className="border-2 border-dashed border-gray-300 rounded-lg p-4"
               />
               
+              {/* Extraction Status */}
               {isExtracting && (
                 <div className="mt-3 flex items-center text-blue-600">
                   <LoadingSpinner size="sm" className="mr-2" />
@@ -301,20 +294,41 @@ I can't wait to go back next summer and explore more of this amazing place!`;
                 </div>
               )}
               
-              {uploadedDocument && (
+              {/* Upload Success */}
+              {uploadedDocument && !isExtracting && (
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
-                  <div className="flex items-center">
-                    <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
-                    <div>
-                      <p className="text-sm font-medium text-green-900">
-                        Document uploaded: {uploadedDocument.originalName}
-                      </p>
-                      {extractedContent && (
-                        <p className="text-sm text-green-700">
-                          Text extracted successfully ({extractedContent.split(/\s+/).length} words)
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
+                      <div>
+                        <p className="text-sm font-medium text-green-900">
+                          Document uploaded: {uploadedDocument.originalName}
                         </p>
-                      )}
+                        {extractedContent && (
+                          <p className="text-sm text-green-700">
+                            Text extracted successfully ({extractedContent.split(/\s+/).length} words)
+                          </p>
+                        )}
+                        {extractionError && (
+                          <p className="text-sm text-red-700">
+                            Text extraction failed: {extractionError}
+                          </p>
+                        )}
+                      </div>
                     </div>
+                    
+                    {/* Retry button for failed extractions */}
+                    {extractionError && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={retryExtraction}
+                        disabled={isExtracting}
+                      >
+                        <ArrowPathIcon className="h-4 w-4 mr-1" />
+                        Retry
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -451,11 +465,11 @@ I can't wait to go back next summer and explore more of this amazing place!`;
             <div className="p-4 bg-blue-50 rounded-lg">
               <h3 className="text-sm font-medium text-blue-900 mb-2">How It Works</h3>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• <strong>Upload Document:</strong> AI will extract and analyze the full text from your document</li>
+                <li>• <strong>Upload Document:</strong> Real text extraction from .docx, .doc, .pdf, and .txt files</li>
                 <li>• <strong>Paste Content:</strong> AI will analyze whatever you paste or type in the text area</li>
                 <li>• <strong>Smart Detection:</strong> The system automatically uses the most complete content available</li>
-                <li>• <strong>Manual Review:</strong> Your editor will review your submission manually (no automated plagiarism checking)</li>
-                <li>• <strong>Track Progress:</strong> You can monitor your submission through all stages</li>
+                <li>• <strong>AI Analysis:</strong> Claude AI analyzes your actual content for grammar, structure, and more</li>
+                <li>• <strong>Track Progress:</strong> Monitor your submission through all workflow stages</li>
               </ul>
             </div>
           </div>
