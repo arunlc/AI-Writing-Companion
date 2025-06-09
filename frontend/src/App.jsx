@@ -109,7 +109,15 @@ function App() {
                       </ProtectedRoute>
                     } 
                   />
-                  
+
+                  <Route 
+                    path="/admin/editor-assignment"  // ✅ ADD THIS ROUTE
+                    element={
+                      <ProtectedRoute allowedRoles={['ADMIN']}>
+                        <EditorAssignment />
+                      </ProtectedRoute>
+                    } 
+                  />
                   {/* Reviewer Routes */}
                   <Route 
                     path="/reviews" 
