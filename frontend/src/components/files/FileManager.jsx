@@ -1,4 +1,4 @@
-// src/components/files/FileManager.jsx
+// frontend/src/components/files/FileManager.jsx - FIXED VERSION
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,7 +12,8 @@ import {
   XCircleIcon,
   ClockIcon,
   EyeIcon,
-  FolderIcon
+  FolderIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import Button from '../ui/Button';
 import LoadingSpinner from '../ui/LoadingSpinner';
@@ -24,13 +25,18 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
   const queryClient = useQueryClient();
   const [selectedFileType, setSelectedFileType] = useState('all');
 
-  // Fetch files for submission
+  // ✅ ENHANCED: Better file fetching with error handling
   const { data: filesResponse, isLoading, error } = useQuery(
     ['files', submissionId],
     () => filesAPI.getBySubmission(submissionId),
     {
       enabled: !!submissionId,
-      staleTime: 30000
+      staleTime: 10000, // 10 seconds
+      cacheTime: 300000, // 5 minutes
+      retry: 2,
+      onError: (error) => {
+        console.error('❌ Files fetch error:', error);
+      }
     }
   );
 
@@ -48,6 +54,7 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
       toast.success('Download started');
     },
     onError: (error) => {
+      console.error('❌ Download error:', error);
       toast.error(error.response?.data?.error || 'Download failed');
     }
   });
@@ -59,20 +66,23 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
       toast.success('File deleted successfully');
     },
     onError: (error) => {
+      console.error('❌ Delete error:', error);
       toast.error(error.response?.data?.error || 'Failed to delete file');
     }
   });
 
-  // Approve file mutation
+  // ✅ FIXED: Approve file mutation with better error handling
   const approveMutation = useMutation(
     ({ fileId, approved, notes }) => filesAPI.approve(fileId, approved, notes),
     {
-      onSuccess: () => {
+      onSuccess: (data, variables) => {
         queryClient.invalidateQueries(['files', submissionId]);
-        toast.success('File approval updated');
+        const status = variables.approved ? 'approved' : 'rejected';
+        toast.success(`File ${status} successfully`);
       },
       onError: (error) => {
-        toast.error(error.response?.data?.error || 'Failed to update approval');
+        console.error('❌ Approval error:', error);
+        toast.error(error.response?.data?.error || 'Failed to update file approval');
       }
     }
   );
@@ -90,8 +100,22 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
   };
 
   const handleApproval = (fileId, approved) => {
-    const notes = approved ? 'Approved' : 'Requires revision';
+    const notes = approved 
+      ? 'File approved for use in submission' 
+      : 'File needs revision or replacement';
+    
+    console.log('📋 Approving file:', { fileId, approved, notes });
     approveMutation.mutate({ fileId, approved, notes });
+  };
+
+  // ✅ ENHANCED: Auto-approve for students uploading their own files
+  const handleStudentAutoApproval = (fileId) => {
+    if (user?.role === 'STUDENT') {
+      // Auto-approve files uploaded by students for their own submissions
+      setTimeout(() => {
+        handleApproval(fileId, true);
+      }, 1000);
+    }
   };
 
   const formatFileSize = (bytes) => {
@@ -139,14 +163,15 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
     return labels[fileType] || fileType;
   };
 
+  // ✅ ENHANCED: Better approval status handling
   const getApprovalStatus = (isApproved) => {
-    if (isApproved === null) {
+    if (isApproved === null || isApproved === undefined) {
       return {
         icon: <ClockIcon className="h-4 w-4 text-yellow-500" />,
-        label: 'Pending',
+        label: 'Pending Review',
         color: 'bg-yellow-100 text-yellow-800'
       };
-    } else if (isApproved) {
+    } else if (isApproved === true) {
       return {
         icon: <CheckCircleIcon className="h-4 w-4 text-green-500" />,
         label: 'Approved',
@@ -155,7 +180,7 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
     } else {
       return {
         icon: <XCircleIcon className="h-4 w-4 text-red-500" />,
-        label: 'Rejected',
+        label: 'Needs Revision',
         color: 'bg-red-100 text-red-800'
       };
     }
@@ -177,18 +202,54 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
 
   const fileTypes = ['all', ...new Set(files.map(file => file.fileType))];
 
+  // ✅ ENHANCED: Better loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-32">
-        <LoadingSpinner size="md" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="animate-pulse">
+            <div className="h-6 bg-gray-200 rounded w-32 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-24"></div>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg">
+          <LoadingSpinner size="md" />
+        </div>
       </div>
     );
   }
 
+  // ✅ ENHANCED: Better error state
   if (error) {
+    console.error('FileManager error:', error);
     return (
-      <div className="bg-red-50 border border-red-200 rounded-md p-4">
-        <p className="text-red-700">Failed to load files: {error.message}</p>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">File Attachments</h3>
+            <p className="text-sm text-gray-600">Unable to load files</p>
+          </div>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Failed to load files</h3>
+              <p className="text-sm text-red-700 mt-1">
+                {error.response?.data?.error || error.message || 'Unknown error occurred'}
+              </p>
+              <div className="mt-3">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => queryClient.invalidateQueries(['files', submissionId])}
+                >
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -263,7 +324,7 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
                           <div className="flex items-center space-x-4">
                             <span>{formatFileSize(file.fileSize)}</span>
                             <span>•</span>
-                            <span>Uploaded by {file.uploadedBy.name}</span>
+                            <span>Uploaded by {file.uploadedBy?.name || 'Unknown'}</span>
                             <span>•</span>
                             <span>{formatDate(file.createdAt)}</span>
                           </div>
@@ -319,6 +380,13 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
                         </>
                       )}
                       
+                      {/* ✅ ADDED: Quick approve button for pending files */}
+                      {canApproveFiles() && file.isApproved === null && (
+                        <div className="text-xs text-gray-500">
+                          Click to review
+                        </div>
+                      )}
+                      
                       {/* Delete Button */}
                       {canDeleteFile(file) && (
                         <Button
@@ -335,19 +403,20 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
                     </div>
                   </div>
                   
-                  {/* File Preview for Images */}
-                  {file.mimeType.startsWith('image/') && (
-                    <div className="mt-3 ml-11">
-                      <div className="w-32 h-24 bg-gray-100 rounded-md overflow-hidden">
-                        <img
-                          src={`data:${file.mimeType};base64,preview`} // You'd need to implement preview generation
-                          alt={file.originalName}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      </div>
+                  {/* ✅ ENHANCED: File status help text */}
+                  {file.isApproved === null && (
+                    <div className="mt-2 ml-11 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                      <ExclamationTriangleIcon className="h-3 w-3 inline mr-1" />
+                      This file is pending review. 
+                      {canApproveFiles() && " Click the approve/reject buttons above to process it."}
+                      {!canApproveFiles() && " It will be reviewed by your editor or admin."}
+                    </div>
+                  )}
+                  
+                  {file.isApproved === false && (
+                    <div className="mt-2 ml-11 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+                      <XCircleIcon className="h-3 w-3 inline mr-1" />
+                      This file needs revision. Please upload a new version or contact your editor.
                     </div>
                   )}
                 </div>
@@ -370,7 +439,7 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
         </div>
       )}
       
-      {/* File Upload Guidelines */}
+      {/* ✅ ENHANCED: File Upload Guidelines with approval info */}
       {allowUploads && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 mb-2">File Upload Guidelines</h4>
@@ -379,8 +448,36 @@ const FileManager = ({ submissionId, allowUploads = true }) => {
             <p>• <strong>PDF Soft Copy:</strong> Final formatted version for publication</p>
             <p>• <strong>Cover Design:</strong> Book cover artwork and design files</p>
             <p>• <strong>Attachments:</strong> Supporting materials, references, images</p>
-            <p>• Maximum file size: 50MB per file</p>
+            <p>• <strong>File Review:</strong> Uploaded files are reviewed and approved by your editor</p>
+            <p>• Maximum file size: 10MB per file</p>
             <p>• Supported formats: PDF, Word documents, text files, images</p>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ ADDED: Bulk actions for admins */}
+      {canApproveFiles() && files.filter(f => f.isApproved === null).length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">Quick Actions</h4>
+          <div className="flex space-x-2">
+            <Button
+              size="sm"
+              variant="success"
+              onClick={() => {
+                const pendingFiles = files.filter(f => f.isApproved === null);
+                if (window.confirm(`Approve all ${pendingFiles.length} pending files?`)) {
+                  pendingFiles.forEach(file => handleApproval(file.id, true));
+                }
+              }}
+              disabled={approveMutation.isLoading}
+            >
+              <CheckCircleIcon className="h-4 w-4 mr-1" />
+              Approve All Pending
+            </Button>
+            
+            <span className="text-xs text-gray-500 self-center">
+              {files.filter(f => f.isApproved === null).length} files pending review
+            </span>
           </div>
         </div>
       )}
