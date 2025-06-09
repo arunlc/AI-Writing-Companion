@@ -1,4 +1,4 @@
-// frontend/src/pages/events/EventsList.jsx - COMPLETELY FIXED VERSION
+// frontend/src/pages/events/EventsList.jsx - ADMIN VERSION WITH ATTENDEE MANAGEMENT
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,7 +13,12 @@ import {
   CheckCircleIcon,
   XMarkIcon,
   ExclamationTriangleIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  EyeIcon,
+  UsersIcon,
+  UserIcon,
+  XCircleIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -25,6 +30,7 @@ const EventsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedEventForRSVPs, setSelectedEventForRSVPs] = useState(null);
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
@@ -35,7 +41,7 @@ const EventsList = () => {
     maxAttendees: ''
   });
 
-  // ✅ FIXED: Better error handling and data extraction
+  // Fetch events
   const { data: eventsResponse, isLoading, error } = useQuery(
     'events',
     eventsAPI.getAll,
@@ -45,20 +51,31 @@ const EventsList = () => {
       retry: 2,
       onSuccess: (response) => {
         console.log('📅 Events API Response:', response);
-        console.log('📊 Events Data:', response.data);
-        console.log('🔢 Events Count:', response.data?.length || 0);
       },
       onError: (error) => {
         console.error('❌ Events API Error:', error);
-        console.error('📋 Error Details:', error.response?.data);
         const errorMessage = error.response?.data?.error || error.message || 'Failed to load events';
         toast.error(`Failed to load events: ${errorMessage}`);
       }
     }
   );
 
-  // ✅ FIXED: Better data extraction with proper fallback
+  // Fetch RSVPs for selected event
+  const { data: rsvpsResponse, isLoading: loadingRSVPs } = useQuery(
+    ['event-rsvps', selectedEventForRSVPs?.id],
+    () => eventsAPI.getRsvps(selectedEventForRSVPs.id),
+    {
+      enabled: !!selectedEventForRSVPs && isAdmin(),
+      staleTime: 30000,
+      onError: (error) => {
+        console.error('❌ RSVPs fetch error:', error);
+        toast.error('Failed to load attendee list');
+      }
+    }
+  );
+
   const events = Array.isArray(eventsResponse?.data) ? eventsResponse.data : [];
+  const rsvps = rsvpsResponse?.data?.rsvps || [];
 
   const createEventMutation = useMutation(eventsAPI.create, {
     onSuccess: (response) => {
@@ -75,7 +92,7 @@ const EventsList = () => {
     }
   });
 
-  // ✅ FIXED: Better RSVP mutation with improved error handling
+  // Student RSVP mutation (for non-admin users)
   const rsvpMutation = useMutation(
     ({ eventId, status }) => {
       console.log(`📝 Sending RSVP for event ${eventId} with status ${status}`);
@@ -89,14 +106,6 @@ const EventsList = () => {
       },
       onError: (error, variables) => {
         console.error('❌ RSVP error:', error);
-        console.error('📋 RSVP error details:', {
-          eventId: variables.eventId,
-          status: variables.status,
-          errorResponse: error.response?.data,
-          errorStatus: error.response?.status
-        });
-        
-        // ✅ IMPROVED: Better error messages
         let errorMessage = 'Failed to update RSVP';
         
         if (error.response?.status === 404) {
@@ -108,8 +117,6 @@ const EventsList = () => {
           } else {
             errorMessage = error.response?.data?.error || 'Invalid request. Please try again.';
           }
-        } else if (error.response?.status === 403) {
-          errorMessage = 'You are not authorized to RSVP to this event';
         } else if (error.response?.data?.error) {
           errorMessage = error.response.data.error;
         }
@@ -134,7 +141,6 @@ const EventsList = () => {
   const handleCreateEvent = (e) => {
     e.preventDefault();
     
-    // ✅ FIXED: Better validation
     if (!newEvent.title.trim()) {
       toast.error('Event title is required');
       return;
@@ -145,14 +151,12 @@ const EventsList = () => {
       return;
     }
     
-    // Check if date is in the future
     const eventDate = new Date(newEvent.eventDate);
     if (eventDate <= new Date()) {
       toast.error('Event date must be in the future');
       return;
     }
     
-    // ✅ FIXED: Clean data before sending (prevents validation errors)
     const eventData = {
       title: newEvent.title.trim(),
       description: newEvent.description.trim() || undefined,
@@ -163,7 +167,6 @@ const EventsList = () => {
       maxAttendees: newEvent.maxAttendees && newEvent.maxAttendees.trim() ? parseInt(newEvent.maxAttendees) : undefined
     };
 
-    // Additional validation
     if (newEvent.isVirtual && newEvent.meetingLink && !/^https?:\/\/.+/.test(newEvent.meetingLink.trim())) {
       toast.error('Meeting link must be a valid URL starting with http:// or https://');
       return;
@@ -173,23 +176,12 @@ const EventsList = () => {
     createEventMutation.mutate(eventData);
   };
 
-  // ✅ FIXED: Better RSVP handling with validation
   const handleRSVP = (eventId, status) => {
-    if (!eventId) {
-      console.error('❌ No event ID provided for RSVP');
-      toast.error('Error: Event ID missing');
+    if (!eventId || !['attending', 'maybe', 'declined'].includes(status)) {
+      toast.error('Invalid RSVP request');
       return;
     }
     
-    if (!['attending', 'maybe', 'declined'].includes(status)) {
-      console.error('❌ Invalid RSVP status:', status);
-      toast.error('Error: Invalid RSVP status');
-      return;
-    }
-    
-    console.log('📝 RSVP request:', { eventId, status, userId: user?.id });
-    
-    // Check if user is logged in
     if (!user?.id) {
       toast.error('You must be logged in to RSVP');
       return;
@@ -234,25 +226,200 @@ const EventsList = () => {
     try {
       return new Date(dateString) < new Date();
     } catch (error) {
-      console.error('❌ Date comparison error:', error);
       return false;
     }
   };
 
-  // ✅ FIXED: Better RSVP detection with null safety
   const getUserRSVP = (event) => {
     if (!event?.rsvps || !Array.isArray(event.rsvps) || !user?.id) {
       return null;
     }
-    
     return event.rsvps.find(rsvp => rsvp.userId === user.id) || null;
   };
 
-  const canCreateEvents = () => {
+  const isAdmin = () => {
     return ['ADMIN', 'OPERATIONS', 'SALES'].includes(user?.role);
   };
 
-  // ✅ ENHANCED: Better loading state
+  const canCreateEvents = () => {
+    return isAdmin();
+  };
+
+  const getAttendeesByStatus = (event) => {
+    if (!event?.rsvps) return { attending: [], maybe: [], declined: [] };
+    
+    return {
+      attending: event.rsvps.filter(rsvp => rsvp.status === 'attending'),
+      maybe: event.rsvps.filter(rsvp => rsvp.status === 'maybe'),
+      declined: event.rsvps.filter(rsvp => rsvp.status === 'declined')
+    };
+  };
+
+  const RSVPModal = ({ event, onClose }) => {
+    const attendees = getAttendeesByStatus(event);
+    
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
+          
+          <div className="inline-block w-full max-w-4xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Attendees for "{event.title}"
+                </h3>
+                <button
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                {formatEventDate(event.eventDate)}
+              </p>
+            </div>
+            
+            <div className="p-6">
+              {loadingRSVPs ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner size="md" />
+                  <span className="ml-2 text-gray-600">Loading attendees...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Attending */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center mb-3">
+                      <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
+                      <h4 className="font-medium text-green-900">
+                        Attending ({attendees.attending.length})
+                      </h4>
+                    </div>
+                    {attendees.attending.length > 0 ? (
+                      <div className="space-y-2">
+                        {attendees.attending.map((rsvp) => (
+                          <div key={rsvp.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {rsvp.user?.name || 'Unknown User'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {rsvp.user?.email}
+                              </div>
+                              {rsvp.attendeeCount > 1 && (
+                                <div className="text-xs text-green-600">
+                                  +{rsvp.attendeeCount - 1} guest{rsvp.attendeeCount > 2 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                            <UserIcon className="h-4 w-4 text-green-600" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No one attending yet</p>
+                    )}
+                  </div>
+
+                  {/* Maybe */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center mb-3">
+                      <QuestionMarkCircleIcon className="h-5 w-5 text-yellow-600 mr-2" />
+                      <h4 className="font-medium text-yellow-900">
+                        Maybe ({attendees.maybe.length})
+                      </h4>
+                    </div>
+                    {attendees.maybe.length > 0 ? (
+                      <div className="space-y-2">
+                        {attendees.maybe.map((rsvp) => (
+                          <div key={rsvp.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {rsvp.user?.name || 'Unknown User'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {rsvp.user?.email}
+                              </div>
+                            </div>
+                            <UserIcon className="h-4 w-4 text-yellow-600" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No maybes</p>
+                    )}
+                  </div>
+
+                  {/* Declined */}
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center mb-3">
+                      <XCircleIcon className="h-5 w-5 text-red-600 mr-2" />
+                      <h4 className="font-medium text-red-900">
+                        Declined ({attendees.declined.length})
+                      </h4>
+                    </div>
+                    {attendees.declined.length > 0 ? (
+                      <div className="space-y-2">
+                        {attendees.declined.map((rsvp) => (
+                          <div key={rsvp.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {rsvp.user?.name || 'Unknown User'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {rsvp.user?.email}
+                              </div>
+                            </div>
+                            <UserIcon className="h-4 w-4 text-red-600" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No declines</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Summary */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-900 mb-2">Summary</h5>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total RSVPs:</span>
+                    <span className="ml-2 font-medium">{rsvps.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Attending:</span>
+                    <span className="ml-2 font-medium text-green-600">{attendees.attending.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Maybe:</span>
+                    <span className="ml-2 font-medium text-yellow-600">{attendees.maybe.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Declined:</span>
+                    <span className="ml-2 font-medium text-red-600">{attendees.declined.length}</span>
+                  </div>
+                </div>
+                {event.maxAttendees && (
+                  <div className="mt-2 text-sm">
+                    <span className="text-gray-600">Capacity:</span>
+                    <span className="ml-2 font-medium">
+                      {attendees.attending.reduce((sum, rsvp) => sum + (rsvp.attendeeCount || 1), 0)} / {event.maxAttendees}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -266,9 +433,7 @@ const EventsList = () => {
     );
   }
 
-  // ✅ ENHANCED: Better error handling
   if (error) {
-    console.error('📋 Events page error:', error);
     return (
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
@@ -297,11 +462,6 @@ const EventsList = () => {
     );
   }
 
-  // ✅ DEBUG: Log final state
-  console.log('🎪 Final Events to Render:', events);
-  console.log('📊 Events Array Length:', events.length);
-  console.log('🎭 Sample Event:', events[0]);
-
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
@@ -311,6 +471,7 @@ const EventsList = () => {
             <h1 className="text-2xl font-bold text-gray-900">Events</h1>
             <p className="mt-1 text-sm text-gray-500">
               {events.length} event{events.length !== 1 ? 's' : ''} scheduled
+              {isAdmin() && ' • Admin View'}
             </p>
           </div>
           {canCreateEvents() && (
@@ -323,7 +484,7 @@ const EventsList = () => {
           )}
         </div>
 
-        {/* Create Event Form */}
+        {/* Create Event Form - Same as before */}
         {showCreateForm && (
           <div className="mb-6 bg-white p-6 rounded-lg shadow border">
             <div className="flex items-center justify-between mb-4">
@@ -352,7 +513,7 @@ const EventsList = () => {
                   required
                   value={newEvent.eventDate}
                   onChange={(e) => setNewEvent({...newEvent, eventDate: e.target.value})}
-                  min={new Date().toISOString().slice(0, 16)} // Prevent past dates
+                  min={new Date().toISOString().slice(0, 16)}
                 />
               </div>
 
@@ -436,14 +597,15 @@ const EventsList = () => {
           </div>
         )}
 
-        {/* ✅ FIXED: Better events display with error boundaries */}
+        {/* Events Display */}
         {events.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => {
               try {
                 const userRSVP = getUserRSVP(event);
                 const isPast = isEventPast(event.eventDate);
-                const attendeeCount = event.rsvps?.filter(rsvp => rsvp.status === 'attending').length || 0;
+                const attendees = getAttendeesByStatus(event);
+                const totalAttending = attendees.attending.reduce((sum, rsvp) => sum + (rsvp.attendeeCount || 1), 0);
                 
                 return (
                   <div
@@ -488,7 +650,7 @@ const EventsList = () => {
                         <div className="flex items-center text-sm text-gray-600">
                           <UserGroupIcon className="h-4 w-4 mr-2 flex-shrink-0" />
                           <span>
-                            {attendeeCount} attending
+                            {totalAttending} attending
                             {event.maxAttendees && ` (max ${event.maxAttendees})`}
                           </span>
                         </div>
@@ -500,50 +662,73 @@ const EventsList = () => {
                         </p>
                       )}
 
-                      {/* ✅ FIXED: RSVP Actions with better error handling */}
-                      {!isPast && (
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant={userRSVP?.status === 'attending' ? 'success' : 'secondary'}
-                            onClick={() => handleRSVP(event.id, 'attending')}
-                            disabled={rsvpMutation.isLoading}
-                            className="flex-1"
-                          >
-                            {rsvpMutation.isLoading ? (
-                              <LoadingSpinner size="sm" />
-                            ) : (
-                              <>
-                                {userRSVP?.status === 'attending' && (
-                                  <CheckCircleIcon className="h-4 w-4 mr-1" />
-                                )}
-                                {userRSVP?.status === 'attending' ? 'Attending' : 'Attend'}
-                              </>
-                            )}
-                          </Button>
+                      {/* Admin View: Show attendee management */}
+                      {isAdmin() ? (
+                        <div className="space-y-3">
+                          {/* Quick stats */}
+                          <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                            <span>{attendees.attending.length} attending</span>
+                            <span>{attendees.maybe.length} maybe</span>
+                            <span>{attendees.declined.length} declined</span>
+                          </div>
                           
+                          {/* View attendees button */}
                           <Button
                             size="sm"
-                            variant={userRSVP?.status === 'maybe' ? 'warning' : 'ghost'}
-                            onClick={() => handleRSVP(event.id, 'maybe')}
-                            disabled={rsvpMutation.isLoading}
+                            variant="secondary"
+                            onClick={() => setSelectedEventForRSVPs(event)}
+                            className="w-full"
                           >
-                            Maybe
-                          </Button>
-                          
-                          <Button
-                            size="sm"
-                            variant={userRSVP?.status === 'declined' ? 'danger' : 'ghost'}
-                            onClick={() => handleRSVP(event.id, 'declined')}
-                            disabled={rsvpMutation.isLoading}
-                          >
-                            Decline
+                            <UsersIcon className="h-4 w-4 mr-2" />
+                            View Attendees ({event.rsvps?.length || 0} RSVPs)
                           </Button>
                         </div>
+                      ) : (
+                        /* Student View: Show RSVP buttons */
+                        !isPast && (
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant={userRSVP?.status === 'attending' ? 'success' : 'secondary'}
+                              onClick={() => handleRSVP(event.id, 'attending')}
+                              disabled={rsvpMutation.isLoading}
+                              className="flex-1"
+                            >
+                              {rsvpMutation.isLoading ? (
+                                <LoadingSpinner size="sm" />
+                              ) : (
+                                <>
+                                  {userRSVP?.status === 'attending' && (
+                                    <CheckCircleIcon className="h-4 w-4 mr-1" />
+                                  )}
+                                  {userRSVP?.status === 'attending' ? 'Attending' : 'Attend'}
+                                </>
+                              )}
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant={userRSVP?.status === 'maybe' ? 'warning' : 'ghost'}
+                              onClick={() => handleRSVP(event.id, 'maybe')}
+                              disabled={rsvpMutation.isLoading}
+                            >
+                              Maybe
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant={userRSVP?.status === 'declined' ? 'danger' : 'ghost'}
+                              onClick={() => handleRSVP(event.id, 'declined')}
+                              disabled={rsvpMutation.isLoading}
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        )
                       )}
 
-                      {/* ✅ ENHANCED: Better RSVP status display */}
-                      {userRSVP && (
+                      {/* Student RSVP status display */}
+                      {!isAdmin() && userRSVP && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="flex items-center text-sm">
                             <span className="text-gray-600">Your RSVP:</span>
@@ -559,8 +744,10 @@ const EventsList = () => {
                         </div>
                       )}
 
-                      {/* Meeting Link for Virtual Events */}
-                      {event.isVirtual && event.meetingLink && userRSVP?.status === 'attending' && (
+                      {/* Meeting Link for Virtual Events (for attendees) */}
+                      {event.isVirtual && event.meetingLink && (
+                        (isAdmin() || userRSVP?.status === 'attending')
+                      ) && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <a
                             href={event.meetingLink}
@@ -569,7 +756,7 @@ const EventsList = () => {
                             className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center"
                           >
                             <VideoCameraIcon className="h-4 w-4 mr-1" />
-                            Join Meeting
+                            {isAdmin() ? 'Meeting Link' : 'Join Meeting'}
                           </a>
                         </div>
                       )}
@@ -613,7 +800,15 @@ const EventsList = () => {
           </div>
         )}
 
-        {/* ✅ ADDED: Network status indicator */}
+        {/* RSVP Details Modal */}
+        {selectedEventForRSVPs && (
+          <RSVPModal 
+            event={selectedEventForRSVPs} 
+            onClose={() => setSelectedEventForRSVPs(null)} 
+          />
+        )}
+
+        {/* Loading indicator */}
         {(rsvpMutation.isLoading || createEventMutation.isLoading) && (
           <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
             <div className="flex items-center">
@@ -625,7 +820,20 @@ const EventsList = () => {
           </div>
         )}
 
-        {/* ✅ ADDED: Debug info in development */}
+        {/* Admin help text */}
+        {isAdmin() && events.length > 0 && (
+          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Admin Features</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>• <strong>View Attendees:</strong> Click "View Attendees" to see who's attending, maybe, or declined</p>
+              <p>• <strong>Event Management:</strong> Create, edit, and manage all events</p>
+              <p>• <strong>RSVP Tracking:</strong> Monitor attendance and capacity in real-time</p>
+              <p>• <strong>Contact Information:</strong> Access attendee email addresses for communication</p>
+            </div>
+          </div>
+        )}
+
+        {/* Debug info in development */}
         {import.meta.env.DEV && (
           <div className="mt-8 p-4 bg-gray-100 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-2">Debug Info</h4>
@@ -633,6 +841,7 @@ const EventsList = () => {
               <p>Events loaded: {events.length}</p>
               <p>User ID: {user?.id}</p>
               <p>User role: {user?.role}</p>
+              <p>Is Admin: {isAdmin().toString()}</p>
               <p>Can create events: {canCreateEvents().toString()}</p>
             </div>
           </div>
