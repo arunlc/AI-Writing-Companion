@@ -13,6 +13,7 @@ import UserManagement from './pages/admin/UserManagement';
 import ReviewQueue from './pages/reviews/ReviewQueue';
 import EventsList from './pages/events/EventsList';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import EditorAssignment from './pages/admin/EditorAssignment';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
