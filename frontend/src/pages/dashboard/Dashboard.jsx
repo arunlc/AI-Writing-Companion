@@ -1,3 +1,4 @@
+// frontend/src/pages/dashboard/Dashboard.jsx - FIXED VERSION
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,22 +20,28 @@ import Button from '../../components/ui/Button';
 const Dashboard = () => {
   const { user } = useAuth();
 
-  const { data: response, isLoading } = useQuery(
+  const { data: response, isLoading, error } = useQuery(
     'dashboard-stats',
     dashboardAPI.getStats,
     {
       retry: 2,
       refetchOnWindowFocus: false,
-      staleTime: 0,
-      cacheTime: 0
+      staleTime: 30000, // 30 seconds
+      cacheTime: 300000, // 5 minutes
+      onSuccess: (data) => {
+        console.log('✅ Dashboard data loaded:', data);
+      },
+      onError: (error) => {
+        console.error('❌ Dashboard error:', error);
+      }
     }
   );
 
-  // ✅ FIX: Extract stats from response.data
-  const stats = response?.data;
-
-  console.log('Dashboard response:', response);
-  console.log('Dashboard stats:', stats);
+  // ✅ FIXED: Better data extraction with fallbacks
+  const stats = response?.data || {};
+  
+  console.log('Dashboard API response:', response);
+  console.log('Dashboard stats extracted:', stats);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -55,7 +62,7 @@ const Dashboard = () => {
     return roleNames[role] || role;
   };
 
-  const StatsCard = ({ title, value, icon: Icon, color = 'blue', action }) => (
+  const StatsCard = ({ title, value, icon: Icon, color = 'blue', action, loading = false }) => (
     <div className="bg-white overflow-hidden shadow rounded-lg">
       <div className="p-5">
         <div className="flex items-center">
@@ -68,7 +75,11 @@ const Dashboard = () => {
                 {title}
               </dt>
               <dd className="text-lg font-medium text-gray-900">
-                {value}
+                {loading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  value
+                )}
               </dd>
             </dl>
           </div>
@@ -81,6 +92,42 @@ const Dashboard = () => {
       </div>
     </div>
   );
+
+  // ✅ ENHANCED: Better error handling
+  if (error) {
+    console.error('Dashboard error details:', error);
+    return (
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Dashboard Temporarily Unavailable</h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <p>We're having trouble loading your dashboard statistics. You can still access all features:</p>
+                  <div className="mt-3 flex space-x-3">
+                    <Link to="/submissions">
+                      <Button variant="secondary" size="sm">
+                        View Submissions
+                      </Button>
+                    </Link>
+                    {user?.role === 'STUDENT' && (
+                      <Link to="/submissions/new">
+                        <Button size="sm">
+                          New Submission
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const StudentDashboard = () => (
     <div className="space-y-6">
@@ -108,27 +155,31 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Submissions"
-          value={stats?.totalSubmissions || '0'}
+          value={stats.totalSubmissions ?? '0'}
           icon={DocumentTextIcon}
           color="blue"
+          loading={isLoading}
         />
         <StatsCard
           title="In Progress"
-          value={stats?.inProgressSubmissions || '0'}
+          value={stats.inProgressSubmissions ?? '0'}
           icon={ClockIcon}
           color="yellow"
+          loading={isLoading}
         />
         <StatsCard
           title="Completed"
-          value={stats?.completedSubmissions || '0'}
+          value={stats.completedSubmissions ?? '0'}
           icon={CheckCircleIcon}
           color="green"
+          loading={isLoading}
         />
         <StatsCard
           title="Upcoming Events"
-          value={stats?.upcomingEvents || '0'}
+          value={stats.upcomingEvents ?? '0'}
           icon={CalendarIcon}
           color="purple"
+          loading={isLoading}
         />
       </div>
 
@@ -138,7 +189,11 @@ const Dashboard = () => {
           <h3 className="text-lg font-medium text-gray-900">Recent Submissions</h3>
         </div>
         <div className="p-6">
-          {stats?.recentSubmissions?.length > 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : stats.recentSubmissions?.length > 0 ? (
             <div className="space-y-4">
               {stats.recentSubmissions.map((submission) => (
                 <div key={submission.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -191,27 +246,31 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Users"
-          value={stats?.totalUsers || '0'}
+          value={stats.totalUsers ?? '0'}
           icon={UserGroupIcon}
           color="blue"
+          loading={isLoading}
         />
         <StatsCard
           title="Total Submissions"
-          value={stats?.totalSubmissions || '0'}
+          value={stats.totalSubmissions ?? '0'}
           icon={DocumentTextIcon}
           color="green"
+          loading={isLoading}
         />
         <StatsCard
           title="Pending Reviews"
-          value={stats?.pendingReviews || '0'}
+          value={stats.pendingReviews ?? '0'}
           icon={ClipboardDocumentCheckIcon}
           color="yellow"
+          loading={isLoading}
         />
         <StatsCard
           title="Active Events"
-          value={stats?.activeEvents || '0'}
+          value={stats.activeEvents ?? '0'}
           icon={CalendarIcon}
           color="purple"
+          loading={isLoading}
         />
       </div>
 
@@ -264,6 +323,35 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* ✅ ADDED: Recent activity for admins */}
+      {stats.recentSubmissions?.length > 0 && (
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Recent System Activity</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {stats.recentSubmissions.slice(0, 5).map((submission) => (
+                <div key={submission.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900">{submission.title}</h4>
+                    <p className="text-xs text-gray-500">
+                      by {submission.student?.name} • {submission.currentStage?.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/submissions/${submission.id}`}
+                    className="text-primary-600 hover:text-primary-700 text-sm"
+                  >
+                    View →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -280,11 +368,39 @@ const Dashboard = () => {
     return dashboards[user?.role] || <StudentDashboard />;
   };
 
+  // ✅ IMPROVED: Better loading state
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner size="large" />
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white p-5 rounded-lg shadow">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="animate-pulse">
+              <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-4 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
