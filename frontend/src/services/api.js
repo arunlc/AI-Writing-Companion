@@ -149,10 +149,117 @@ export const approvalsAPI = {
 };
 
 export const eventsAPI = {
-  getAll: () => api.get('/events'),
-  create: (data) => api.post('/events', data),
-  rsvp: (eventId, data) => api.post(`/events/${eventId}/rsvp`, data),
-  getRsvps: (eventId) => api.get(`/events/${eventId}/rsvps`),
+  getAll: () => {
+    console.log('📞 Calling events API: GET /events');
+    return api.get('/events').then(response => {
+      console.log('✅ Events API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Events API error:', error);
+      throw error;
+    });
+  },
+  
+  create: (data) => {
+    console.log('📞 Calling events API: POST /events', data);
+    return api.post('/events', data).then(response => {
+      console.log('✅ Create event API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Create event API error:', error);
+      throw error;
+    });
+  },
+  
+  rsvp: (eventId, data) => {
+    console.log(`📞 Calling RSVP API: POST /events/${eventId}/rsvp`, data);
+    
+    // ✅ VALIDATION: Check parameters before making request
+    if (!eventId) {
+      const error = new Error('Event ID is required for RSVP');
+      console.error('❌ RSVP validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (!data || !data.status) {
+      const error = new Error('RSVP status is required');
+      console.error('❌ RSVP validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (!['attending', 'maybe', 'declined'].includes(data.status)) {
+      const error = new Error('Invalid RSVP status');
+      console.error('❌ RSVP validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.post(`/events/${eventId}/rsvp`, data).then(response => {
+      console.log('✅ RSVP API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ RSVP API error:', {
+        eventId,
+        data,
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      });
+      throw error;
+    });
+  },
+  
+  getRsvps: (eventId) => {
+    console.log(`📞 Calling get RSVPs API: GET /events/${eventId}/rsvps`);
+    
+    if (!eventId) {
+      const error = new Error('Event ID is required to get RSVPs');
+      console.error('❌ Get RSVPs validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.get(`/events/${eventId}/rsvps`).then(response => {
+      console.log('✅ Get RSVPs API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Get RSVPs API error:', error);
+      throw error;
+    });
+  },
+  
+  update: (eventId, data) => {
+    console.log(`📞 Calling update event API: PUT /events/${eventId}`, data);
+    
+    if (!eventId) {
+      const error = new Error('Event ID is required to update event');
+      console.error('❌ Update event validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.put(`/events/${eventId}`, data).then(response => {
+      console.log('✅ Update event API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Update event API error:', error);
+      throw error;
+    });
+  },
+  
+  delete: (eventId) => {
+    console.log(`📞 Calling delete event API: DELETE /events/${eventId}`);
+    
+    if (!eventId) {
+      const error = new Error('Event ID is required to delete event');
+      console.error('❌ Delete event validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.delete(`/events/${eventId}`).then(response => {
+      console.log('✅ Delete event API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Delete event API error:', error);
+      throw error;
+    });
+  }
 };
 
 export const reviewsAPI = {
