@@ -128,6 +128,10 @@ export const filesAPI = {
     approved, 
     notes 
   }),
+  // ✅ NEW: Extract text from uploaded file
+  extractText: (fileId) => api.get(`/files/${fileId}/extract-text`),
+  // ✅ NEW: Health check for text extraction
+  healthCheck: () => api.get('/files/health'),
 };
 
 export const approvalsAPI = {
