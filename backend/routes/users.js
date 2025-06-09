@@ -1,4 +1,4 @@
-// backend/routes/users.js
+// backend/routes/users.js - COMPLETE FIXED VERSION
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult, param } = require('express-validator');
@@ -12,6 +12,18 @@ const prisma = new PrismaClient();
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+// Custom middleware to handle empty strings in optional fields
+const sanitizeOptionalFields = (req, res, next) => {
+  // Convert empty strings to undefined for optional fields
+  if (req.body.parentEmail === '') {
+    req.body.parentEmail = undefined;
+  }
+  if (req.body.grade === '') {
+    req.body.grade = undefined;
   }
   next();
 };
@@ -78,16 +90,21 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // POST /api/users - Create new user (admin only)
-router.post('/', authenticateToken, requireAdmin, [
+router.post('/', authenticateToken, requireAdmin, sanitizeOptionalFields, [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('role').isIn(['STUDENT', 'ADMIN', 'EDITOR', 'REVIEWER', 'SALES', 'OPERATIONS']),
-  body('grade').optional().trim(),
-  body('parentEmail').optional().isEmail().normalizeEmail()
+  body('grade').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('parentEmail')
+    .optional({ nullable: true, checkFalsy: true })
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Parent email must be valid if provided')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.error('Validation errors:', errors.array());
     return res.status(400).json({ error: 'Validation failed', details: errors.array() });
   }
 
@@ -107,17 +124,24 @@ router.post('/', authenticateToken, requireAdmin, [
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    // Create user with proper null handling
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         name,
         role,
-        grade: grade || null,
-        parentEmail: parentEmail || null,
+        grade: grade && grade.trim() ? grade.trim() : null,
+        parentEmail: parentEmail && parentEmail.trim() ? parentEmail.trim() : null,
         createdById: req.user.id
       }
+    });
+
+    console.log('User created successfully:', {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role
     });
 
     res.status(201).json({
@@ -140,13 +164,17 @@ router.post('/', authenticateToken, requireAdmin, [
 });
 
 // PUT /api/users/:id - Update user (admin only)
-router.put('/:id', authenticateToken, requireAdmin, [
+router.put('/:id', authenticateToken, requireAdmin, sanitizeOptionalFields, [
   param('id').isUUID(),
   body('name').optional().trim().isLength({ min: 2 }),
   body('role').optional().isIn(['STUDENT', 'ADMIN', 'EDITOR', 'REVIEWER', 'SALES', 'OPERATIONS']),
   body('isActive').optional().isBoolean(),
-  body('grade').optional().trim(),
-  body('parentEmail').optional().isEmail().normalizeEmail()
+  body('grade').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('parentEmail')
+    .optional({ nullable: true, checkFalsy: true })
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Parent email must be valid if provided')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -171,8 +199,8 @@ router.put('/:id', authenticateToken, requireAdmin, [
     if (req.body.name !== undefined) updateData.name = req.body.name;
     if (req.body.role !== undefined) updateData.role = req.body.role;
     if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
-    if (req.body.grade !== undefined) updateData.grade = req.body.grade || null;
-    if (req.body.parentEmail !== undefined) updateData.parentEmail = req.body.parentEmail || null;
+    if (req.body.grade !== undefined) updateData.grade = req.body.grade && req.body.grade.trim() ? req.body.grade.trim() : null;
+    if (req.body.parentEmail !== undefined) updateData.parentEmail = req.body.parentEmail && req.body.parentEmail.trim() ? req.body.parentEmail.trim() : null;
 
     const updatedUser = await prisma.user.update({
       where: { id: req.params.id },
