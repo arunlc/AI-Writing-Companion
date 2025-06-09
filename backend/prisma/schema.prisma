@@ -230,6 +230,7 @@ model EventRsvp {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
 
+  // ✅ FIXED: Correct unique constraint name
   @@unique([eventId, userId])
   @@map("event_rsvps")
 }
