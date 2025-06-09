@@ -64,6 +64,11 @@ const Layout = ({ children }) => {
           icon: UserGroupIcon
         },
         {
+          name: 'Editor Assignment',
+          href: '/admin/editor-assignment',
+          icon: UserGroupIcon
+        },
+        {
           name: 'All Submissions',
           href: '/submissions',
           icon: DocumentTextIcon
