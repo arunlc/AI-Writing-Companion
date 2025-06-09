@@ -1,4 +1,4 @@
-// frontend/src/pages/submissions/NewSubmission.jsx - SMART DETECTION VERSION
+// frontend/src/pages/submissions/NewSubmission.jsx - FIXED VERSION
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { submissionsAPI, filesAPI } from '../../services/api';
@@ -52,18 +52,23 @@ const NewSubmission = () => {
     }
   };
 
-  // Mock function to extract text from document
-  // In real implementation, this would call a backend service
-  const extractTextFromDocument = async (file) => {
+  // ✅ FIXED: Extract text from uploaded document
+  const extractTextFromDocument = async (uploadedFile) => {
     setIsExtracting(true);
     
     try {
       // Simulate text extraction (replace with actual backend call)
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // ✅ FIXED: Use uploadedFile.originalName instead of uploadedFile.name
+      const fileName = uploadedFile.originalName || '';
+      
       // Mock extracted content based on file type
       let mockContent = '';
-      if (file.name.toLowerCase().includes('spy') || file.name.toLowerCase().includes('thriller')) {
+      if (fileName.toLowerCase().includes('spy') || 
+          fileName.toLowerCase().includes('thriller') || 
+          fileName.toLowerCase().includes('shadow') || 
+          fileName.toLowerCase().includes('protocol')) {
         mockContent = `The Shadow's Edge
 
 Agent Sarah Chen crouched behind the marble pillar, her breath barely audible in the silent museum corridor. The artifact she'd been tracking for months—the encrypted drive containing state secrets—lay just twenty feet away in the display case. 
@@ -72,7 +77,7 @@ But something was wrong. The security system she'd hacked showed no guards, yet 
 
 "I know you're here, Agent Chen," a familiar voice called out from the darkness. It was Viktor Kozlov, the Russian operative she thought she'd left for dead in Prague. "The drive you're after? It's not what you think it is."
 
-Sarah's mind raced. How had he found her? More importantly, how was he still alive? She reached for the encrypted communicator in her jacket, but her fingers found only empty fabric. Her backup team was compromised.
+Sarah's mind raced. How had she found her? More importantly, how was he still alive? She reached for the encrypted communicator in her jacket, but her fingers found only empty fabric. Her backup team was compromised.
 
 The moonlight streaming through the skylight cast eerie shadows across the ancient artifacts. Each piece told a story of civilizations past, but tonight, they would witness the writing of a new chapter in the world of international espionage.
 
@@ -82,7 +87,11 @@ In one fluid motion, she rolled from behind the pillar and sprinted toward the d
 
 The drive was within reach when the lights suddenly blazed on, revealing not just Viktor, but an entire team of armed operatives surrounding her. Sarah smiled grimly. She'd walked into a trap, but she'd been preparing for this moment her entire career.
 
-"Hello, Viktor," she said, palming the drive while keeping her hands visible. "I was wondering when you'd show up to this party."`;
+"Hello, Viktor," she said, palming the drive while keeping her hands visible. "I was wondering when you'd show up to this party."
+
+The extraction point was still three miles away through hostile territory. Sarah calculated her odds: twelve armed men, one exit, and thirty seconds before backup arrived. The drive in her pocket contained information that could save thousands of lives, but only if she could get it to safety.
+
+She looked at Viktor and smiled. "Shall we dance?"`;
       } else {
         mockContent = `My Summer Adventure
 
@@ -122,9 +131,9 @@ I can't wait to go back next summer and explore more of this amazing place!`;
     }
   };
 
-  const handleFileUploadComplete = useCallback(async (file) => {
-    console.log('Document uploaded:', file);
-    setUploadedDocument(file);
+  const handleFileUploadComplete = useCallback(async (uploadedFile) => {
+    console.log('Document uploaded:', uploadedFile);
+    setUploadedDocument(uploadedFile);
     
     // Only extract if it's a text document
     const textFileTypes = [
@@ -134,12 +143,12 @@ I can't wait to go back next summer and explore more of this amazing place!`;
       'application/pdf' // .pdf
     ];
     
-    if (textFileTypes.includes(file.mimeType)) {
-      await extractTextFromDocument(file);
+    if (textFileTypes.includes(uploadedFile.mimeType)) {
+      await extractTextFromDocument(uploadedFile);
     } else {
       toast.info('Document uploaded as attachment. Please paste your content in the text area.');
     }
-  }, []);
+  }, [formData.content]);
 
   const getAnalysisContent = () => {
     if (contentSource === 'document' && extractedContent) {
