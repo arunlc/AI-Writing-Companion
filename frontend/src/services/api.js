@@ -1,4 +1,4 @@
-// src/services/api.js
+// frontend/src/services/api.js - COMPLETE FILE WITH EDITOR ASSIGNMENT
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -114,6 +114,14 @@ export const submissionsAPI = {
   updateStage: (id, stage, notes) => api.put(`/submissions/${id}/stage`, { stage, notes }),
   triggerAnalysis: (id) => api.post(`/submissions/${id}/analysis`),
   archive: (id) => api.delete(`/submissions/${id}`),
+  
+  // ✅ NEW: Editor Assignment Functions
+  assignEditor: (submissionId, editorId, notes = '') => 
+    api.put(`/submissions/${submissionId}/assign-editor`, { editorId, notes }),
+  getUnassigned: () => 
+    api.get('/submissions/unassigned'),
+  getEditorWorkload: () => 
+    api.get('/submissions/editor-workload'),
 };
 
 export const filesAPI = {
@@ -128,9 +136,9 @@ export const filesAPI = {
     approved, 
     notes 
   }),
-  // ✅ NEW: Extract text from uploaded file
+  // Extract text from uploaded file
   extractText: (fileId) => api.get(`/files/${fileId}/extract-text`),
-  // ✅ NEW: Health check for text extraction
+  // Health check for text extraction
   healthCheck: () => api.get('/files/health'),
 };
 
