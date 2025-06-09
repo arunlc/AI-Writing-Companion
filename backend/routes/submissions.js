@@ -1,9 +1,19 @@
+// backend/routes/submissions.js - PART 1 OF 2
 const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('./auth');
 const { analyzeWithClaude } = require('../services/claudeService');
-const { createNotification } = require('../services/notificationService');
+
+// Try to import notification service (optional)
+let createNotification;
+try {
+  const notificationService = require('../services/notificationService');
+  createNotification = notificationService.createNotification;
+} catch (error) {
+  console.log('⚠️ Notification service not available');
+  createNotification = null;
+}
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -279,14 +289,16 @@ async function analyzeSubmissionAsync(submissionId, content, title, studentName)
       where: { role: 'REVIEWER', isActive: true }
     });
 
-    for (const reviewer of reviewers) {
-      await createNotification({
-        userId: reviewer.id,
-        type: 'ASSIGNMENT',
-        title: 'New Submission for Plagiarism Review',
-        message: `A new submission "${title}" by ${studentName} is ready for plagiarism review.`,
-        metadata: { submissionId }
-      });
+    if (createNotification) {
+      for (const reviewer of reviewers) {
+        await createNotification({
+          userId: reviewer.id,
+          type: 'ASSIGNMENT',
+          title: 'New Submission for Plagiarism Review',
+          message: `A new submission "${title}" by ${studentName} is ready for plagiarism review.`,
+          metadata: { submissionId }
+        });
+      }
     }
 
     console.log(`Claude analysis completed for submission ${submissionId}`);
@@ -349,6 +361,10 @@ async function analyzeSubmissionAsync(submissionId, content, title, studentName)
     }
   }
 }
+
+// CONTINUED IN PART 2...
+// backend/routes/submissions.js - PART 2 OF 2
+// CONTINUATION FROM PART 1...
 
 // GET /api/submissions/:id/analysis - Check analysis status
 router.get('/:id/analysis', authenticateToken, [
@@ -512,17 +528,187 @@ router.put('/:id/stage', authenticateToken, [
     }
 
     // Send notifications
-    await createNotification({
-      userId: submission.studentId,
-      type: 'WORKFLOW_UPDATE',
-      title: 'Submission Stage Updated',
-      message: `Your submission "${submission.title}" has moved to ${stage.replace('_', ' ').toLowerCase()}.`
-    });
+    if (createNotification) {
+      await createNotification({
+        userId: submission.studentId,
+        type: 'WORKFLOW_UPDATE',
+        title: 'Submission Stage Updated',
+        message: `Your submission "${submission.title}" has moved to ${stage.replace('_', ' ').toLowerCase()}.`
+      });
+    }
 
     res.json({ message: 'Stage updated successfully' });
   } catch (error) {
     console.error('Update stage error:', error);
     res.status(500).json({ error: 'Failed to update stage' });
+  }
+});
+
+// ✅ NEW: PUT /api/submissions/:id/assign-editor - Assign editor to submission
+router.put('/:id/assign-editor', authenticateToken, requireRole(['ADMIN', 'OPERATIONS']), [
+  param('id').isUUID().withMessage('Invalid submission ID'),
+  body('editorId').isUUID().withMessage('Valid editor ID required'),
+  body('notes').optional().trim()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+  }
+
+  const { id } = req.params;
+  const { editorId, notes } = req.body;
+
+  try {
+    // Verify submission exists
+    const submission = await prisma.submission.findUnique({
+      where: { id },
+      include: { student: true, editor: true }
+    });
+
+    if (!submission) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    // Verify editor exists and has EDITOR role
+    const editor = await prisma.user.findFirst({
+      where: { id: editorId, role: 'EDITOR', isActive: true }
+    });
+
+    if (!editor) {
+      return res.status(404).json({ error: 'Editor not found or inactive' });
+    }
+
+    // Update submission with editor assignment
+    const updatedSubmission = await prisma.submission.update({
+      where: { id },
+      data: { editorId },
+      include: {
+        student: { select: { id: true, name: true, email: true } },
+        editor: { select: { id: true, name: true, email: true } }
+      }
+    });
+
+    // Create or update editor assignment record
+    await prisma.editorAssignment.upsert({
+      where: {
+        studentId_editorId: {
+          studentId: submission.studentId,
+          editorId: editorId
+        }
+      },
+      update: {
+        assignedBy: req.user.id,
+        notes: notes || `Assigned to submission: ${submission.title}`,
+        isActive: true
+      },
+      create: {
+        studentId: submission.studentId,
+        editorId: editorId,
+        assignedBy: req.user.id,
+        notes: notes || `Assigned to submission: ${submission.title}`,
+        isActive: true
+      }
+    });
+
+    // Create notifications
+    if (createNotification) {
+      // Notify editor
+      await createNotification({
+        userId: editorId,
+        type: 'ASSIGNMENT',
+        title: 'New Submission Assigned',
+        message: `You have been assigned to review "${submission.title}" by ${submission.student.name}.`,
+        metadata: { submissionId: id }
+      });
+
+      // Notify student
+      await createNotification({
+        userId: submission.studentId,
+        type: 'WORKFLOW_UPDATE',
+        title: 'Editor Assigned',
+        message: `${editor.name} has been assigned as your editor for "${submission.title}".`,
+        metadata: { submissionId: id, editorId }
+      });
+    }
+
+    console.log('✅ Editor assigned successfully:', {
+      submissionId: id,
+      editorId,
+      editorName: editor.name,
+      studentName: submission.student.name
+    });
+
+    res.json({
+      message: 'Editor assigned successfully',
+      submission: updatedSubmission
+    });
+  } catch (error) {
+    console.error('Assign editor error:', error);
+    res.status(500).json({ error: 'Failed to assign editor' });
+  }
+});
+
+// ✅ NEW: GET /api/submissions/unassigned - Get unassigned submissions (admin only)
+router.get('/unassigned', authenticateToken, requireRole(['ADMIN', 'OPERATIONS']), async (req, res) => {
+  try {
+    const unassignedSubmissions = await prisma.submission.findMany({
+      where: {
+        editorId: null,
+        isArchived: false
+      },
+      include: {
+        student: {
+          select: { id: true, name: true, email: true, grade: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log(`📋 Found ${unassignedSubmissions.length} unassigned submissions`);
+
+    res.json({
+      submissions: unassignedSubmissions,
+      count: unassignedSubmissions.length
+    });
+  } catch (error) {
+    console.error('Get unassigned submissions error:', error);
+    res.status(500).json({ error: 'Failed to fetch unassigned submissions' });
+  }
+});
+
+// ✅ NEW: GET /api/submissions/editor-workload - Get editor workload summary
+router.get('/editor-workload', authenticateToken, requireRole(['ADMIN', 'OPERATIONS']), async (req, res) => {
+  try {
+    const editors = await prisma.user.findMany({
+      where: { role: 'EDITOR', isActive: true },
+      include: {
+        editorSubmissions: {
+          where: { 
+            currentStage: { not: 'COMPLETED' },
+            isArchived: false 
+          },
+          select: { id: true, title: true, currentStage: true, createdAt: true }
+        }
+      }
+    });
+
+    const workloadSummary = editors.map(editor => ({
+      id: editor.id,
+      name: editor.name,
+      email: editor.email,
+      activeSubmissions: editor.editorSubmissions.length,
+      submissions: editor.editorSubmissions
+    }));
+
+    console.log(`📊 Editor workload: ${workloadSummary.length} editors, ${workloadSummary.reduce((sum, editor) => sum + editor.activeSubmissions, 0)} total active submissions`);
+
+    res.json({
+      editors: workloadSummary,
+      totalActiveSubmissions: workloadSummary.reduce((sum, editor) => sum + editor.activeSubmissions, 0)
+    });
+  } catch (error) {
+    console.error('Get editor workload error:', error);
+    res.status(500).json({ error: 'Failed to fetch editor workload' });
   }
 });
 
