@@ -1,3 +1,4 @@
+// frontend/src/components/ui/Button.jsx - UPDATED WITH WARNING VARIANT
 import React from 'react';
 import clsx from 'clsx';
 
@@ -17,6 +18,7 @@ const Button = ({
     secondary: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-primary-500 disabled:bg-gray-100',
     success: 'bg-success-600 text-white hover:bg-success-700 focus:ring-success-500 disabled:bg-gray-400',
     danger: 'bg-error-600 text-white hover:bg-error-700 focus:ring-error-500 disabled:bg-gray-400',
+    warning: 'bg-warning-600 text-white hover:bg-warning-700 focus:ring-warning-500 disabled:bg-gray-400', // ✅ ADDED
     ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-primary-500 disabled:text-gray-400'
   };
 
