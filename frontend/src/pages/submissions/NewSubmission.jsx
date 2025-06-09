@@ -82,7 +82,7 @@ const NewSubmission = () => {
 
       // If no extracted text in upload response, call extraction API
       console.log('📞 Calling text extraction API...');
-      const response = await filesAPI.get(`${uploadedFile.id}/extract-text`);
+      const response = await filesAPI.extractText(uploadedFile.id);
       
       if (response.data.extractedText) {
         const extractedText = response.data.extractedText;
