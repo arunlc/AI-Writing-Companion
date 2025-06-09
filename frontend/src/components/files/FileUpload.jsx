@@ -1,4 +1,4 @@
-// frontend/src/components/files/FileUpload.jsx - ENHANCED VERSION
+// frontend/src/components/files/FileUpload.jsx - FIXED VERSION
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import { filesAPI } from '../../services/api';
@@ -20,7 +20,7 @@ const FileUpload = ({
   fileType = 'ATTACHMENT', 
   onUploadComplete,
   accept = '',
-  maxSize = 10 * 1024 * 1024, // ✅ REDUCED: 10MB limit (was 50MB)
+  maxSize = 10 * 1024 * 1024, // 10MB limit
   multiple = false,
   className = ''
 }) => {
@@ -30,10 +30,13 @@ const FileUpload = ({
   const fileInputRef = useRef(null);
   const queryClient = useQueryClient();
 
-  // ✅ ENHANCED: Better upload mutation with error handling
+  // ✅ FIXED: Proper upload mutation with correct error handling
   const uploadMutation = useMutation(filesAPI.upload, {
     onSuccess: (data, variables) => {
-      const fileName = variables.get('file').name;
+      // Extract filename from FormData
+      const file = variables.get('file');
+      const fileName = file.name;
+      
       setUploadProgress(prev => ({
         ...prev,
         [fileName]: { status: 'completed', progress: 100 }
@@ -52,13 +55,16 @@ const FileUpload = ({
       }
     },
     onError: (error, variables) => {
-      const fileName = variables.get('file').name;
+      // Extract filename from FormData
+      const file = variables.get('file');
+      const fileName = file.name;
+      
       setUploadProgress(prev => ({
         ...prev,
         [fileName]: { status: 'error', progress: 0 }
       }));
       
-      // ✅ ENHANCED: Better error message handling
+      // Better error message handling
       const errorData = error.response?.data;
       let errorMessage = 'Upload failed';
       
@@ -104,7 +110,6 @@ const FileUpload = ({
     }
   };
 
-  // ✅ ENHANCED: Better file validation
   const handleFiles = (files) => {
     console.log('📁 Processing selected files:', files.length);
     
@@ -128,7 +133,7 @@ const FileUpload = ({
         return false;
       }
       
-      // ✅ ENHANCED: Additional validation for common issues
+      // Additional validation for common issues
       if (file.name.length > 255) {
         toast.error(`File name "${file.name}" is too long. Maximum 255 characters.`);
         return false;
@@ -170,111 +175,30 @@ const FileUpload = ({
     });
   };
 
-  // ✅ ENHANCED: Upload with real progress tracking
-  const uploadFile = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('submissionId', submissionId);
-    formData.append('fileType', fileType);
-
-    console.log('📤 Starting upload for:', file.name);
-
-    setUploadProgress(prev => ({
-      ...prev,
-      [file.name]: { status: 'uploading', progress: 10 }
-    }));
-
-    try {
-      // ✅ ENHANCED: Create XMLHttpRequest for real progress tracking
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        // Track upload progress
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 90); // Reserve 10% for processing
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.name]: { status: 'uploading', progress: Math.max(10, percentComplete) }
-            }));
-          }
-        });
-        
-        // Handle completion
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.name]: { status: 'processing', progress: 95 }
-            }));
-            
-            try {
-              const response = JSON.parse(xhr.responseText);
-              resolve({ data: response });
-            } catch (e) {
-              reject(new Error('Invalid response format'));
-            }
-          } else {
-            try {
-              const errorResponse = JSON.parse(xhr.responseText);
-              reject({ response: { data: errorResponse, status: xhr.status } });
-            } catch (e) {
-              reject(new Error(`Upload failed with status ${xhr.status}`));
-            }
-          }
-        });
-        
-        // Handle errors
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
-        });
-        
-        xhr.addEventListener('timeout', () => {
-          reject(new Error('Upload timeout'));
-        });
-        
-        // Set timeout
-        xhr.timeout = 25000; // 25 seconds
-        
-        // Get auth token
-        const token = localStorage.getItem('token');
-        
-        // Configure request
-        xhr.open('POST', `${import.meta.env.VITE_API_URL || '/api'}/files/upload`);
-        if (token) {
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        }
-        
-        // Start upload
-        xhr.send(formData);
-      });
-    } catch (error) {
-      console.error('❌ Upload error for:', file.name, error);
-      throw error;
-    }
-  };
-
+  // ✅ FIXED: Simplified upload function using the mutation directly
   const uploadAllFiles = async () => {
     console.log('📤 Starting batch upload for', selectedFiles.length, 'files');
     
     for (const file of selectedFiles) {
       try {
-        const result = await uploadFile(file);
-        
-        // Process completion
-        setUploadProgress(prev => ({
-          ...prev,
-          [file.name]: { status: 'completed', progress: 100 }
-        }));
-        
-        // Handle success via mutation callbacks
-        uploadMutation.onSuccess(result, new FormData());
-        
-      } catch (error) {
-        // Handle error via mutation callbacks
         const formData = new FormData();
         formData.append('file', file);
-        uploadMutation.onError(error, formData);
+        formData.append('submissionId', submissionId);
+        formData.append('fileType', fileType);
+
+        console.log('📤 Starting upload for:', file.name);
+
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: { status: 'uploading', progress: 25 }
+        }));
+
+        // Use the mutation directly - no need for custom XMLHttpRequest
+        await uploadMutation.mutateAsync(formData);
+        
+      } catch (error) {
+        console.error('❌ Upload error for:', file.name, error);
+        // Error handling is done in the mutation's onError callback
       }
     }
   };
@@ -313,7 +237,6 @@ const FileUpload = ({
     return labels[type] || type;
   };
 
-  // ✅ ENHANCED: Better progress display
   const getProgressColor = (status, progress) => {
     switch (status) {
       case 'uploading':
@@ -424,7 +347,6 @@ const FileUpload = ({
                         {formatFileSize(file.size)} • {file.type || 'Unknown type'}
                       </p>
                       
-                      {/* ✅ ENHANCED: Better progress display */}
                       {progress && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between text-xs">
@@ -512,7 +434,7 @@ const FileUpload = ({
         </div>
       )}
 
-      {/* ✅ ENHANCED: Better help text with troubleshooting */}
+      {/* Help text */}
       <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <h4 className="text-sm font-medium text-blue-900 mb-2">Upload Guidelines</h4>
         <div className="text-xs text-blue-800 space-y-1">
