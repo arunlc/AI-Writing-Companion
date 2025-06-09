@@ -1,4 +1,4 @@
-// backend/routes/files.js - COMPLETE VERSION
+// backend/routes/files.js - FINAL COMPLETE VERSION
 const express = require('express');
 const multer = require('multer');
 const { body, validationResult, param } = require('express-validator');
@@ -79,7 +79,7 @@ router.post('/upload', authenticateToken, (req, res, next) => {
     next();
   });
 }, [
-  body('submissionId').isUUID().withMessage('Valid submission ID required'),
+  body('submissionId').isLength({ min: 1 }).withMessage('Valid submission ID required'),
   body('fileType').isIn(['SUBMISSION_CONTENT', 'PDF_SOFT_COPY', 'COVER_DESIGN', 'ATTACHMENT'])
     .withMessage('Valid file type required')
 ], async (req, res) => {
@@ -182,22 +182,27 @@ router.post('/upload', authenticateToken, (req, res, next) => {
     console.log('✅ File record saved to database');
 
     // Create notification for relevant users
-    const notificationUsers = [];
-    if (req.user.id !== submission.studentId) {
-      notificationUsers.push(submission.studentId);
-    }
-    if (submission.editorId && req.user.id !== submission.editorId) {
-      notificationUsers.push(submission.editorId);
-    }
+    try {
+      const notificationUsers = [];
+      if (req.user.id !== submission.studentId) {
+        notificationUsers.push(submission.studentId);
+      }
+      if (submission.editorId && req.user.id !== submission.editorId) {
+        notificationUsers.push(submission.editorId);
+      }
 
-    for (const userId of notificationUsers) {
-      await createNotification({
-        userId,
-        type: 'WORKFLOW_UPDATE',
-        title: 'New File Uploaded',
-        message: `A new ${fileType.toLowerCase().replace('_', ' ')} file has been uploaded for "${submission.title}".`,
-        metadata: { submissionId, fileId: fileRecord.id }
-      });
+      for (const userId of notificationUsers) {
+        await createNotification({
+          userId,
+          type: 'WORKFLOW_UPDATE',
+          title: 'New File Uploaded',
+          message: `A new ${fileType.toLowerCase().replace('_', ' ')} file has been uploaded for "${submission.title}".`,
+          metadata: { submissionId, fileId: fileRecord.id }
+        });
+      }
+    } catch (notificationError) {
+      console.error('❌ Notification error (non-blocking):', notificationError);
+      // Don't fail the upload for notification errors
     }
 
     console.log('✅ Upload completed successfully');
@@ -233,10 +238,11 @@ router.post('/upload', authenticateToken, (req, res, next) => {
 
 // GET /api/files/:id - Get file download URL
 router.get('/:id', authenticateToken, [
-  param('id').isUUID().withMessage('Valid file ID required')
+  param('id').isLength({ min: 1 }).withMessage('Valid file ID required')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.error('❌ File download validation errors:', errors.array());
     return res.status(400).json({ error: 'Validation failed', details: errors.array() });
   }
 
@@ -275,24 +281,30 @@ router.get('/:id', authenticateToken, [
       mimeType: file.mimeType
     });
   } catch (error) {
-    console.error('File download error:', error);
+    console.error('❌ File download error:', error);
     res.status(500).json({ error: 'Failed to get download URL' });
   }
 });
 
-// ✅ MISSING ROUTE: GET /api/files/submission/:submissionId - Get all files for submission
+// ✅ FIXED: GET /api/files/submission/:submissionId - Get all files for submission
 router.get('/submission/:submissionId', authenticateToken, [
-  param('submissionId').isUUID().withMessage('Valid submission ID required')
+  param('submissionId').isLength({ min: 1 }).withMessage('Valid submission ID required')
 ], async (req, res) => {
   console.log('📂 Getting files for submission:', req.params.submissionId);
+  console.log('🔍 User requesting:', req.user.id, 'Role:', req.user.role);
   
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     console.error('❌ Validation errors:', errors.array());
-    return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    return res.status(400).json({ 
+      error: 'Validation failed', 
+      details: errors.array(),
+      submissionId: req.params.submissionId
+    });
   }
 
   try {
+    console.log('🔍 Looking for submission...');
     const submission = await prisma.submission.findUnique({
       where: { id: req.params.submissionId }
     });
@@ -303,6 +315,12 @@ router.get('/submission/:submissionId', authenticateToken, [
     }
 
     console.log('✅ Submission found:', submission.title);
+    console.log('📋 Submission details:', {
+      id: submission.id,
+      title: submission.title,
+      studentId: submission.studentId,
+      editorId: submission.editorId
+    });
 
     // Check permissions
     const hasAccess = 
@@ -310,6 +328,14 @@ router.get('/submission/:submissionId', authenticateToken, [
       req.user.role === 'OPERATIONS' ||
       submission.studentId === req.user.id ||
       submission.editorId === req.user.id;
+
+    console.log('🔐 Permission check:', {
+      userRole: req.user.role,
+      userId: req.user.id,
+      isStudent: submission.studentId === req.user.id,
+      isEditor: submission.editorId === req.user.id,
+      hasAccess
+    });
 
     if (!hasAccess) {
       console.error('❌ Access denied for user:', req.user.id);
@@ -328,18 +354,21 @@ router.get('/submission/:submissionId', authenticateToken, [
       orderBy: { createdAt: 'desc' }
     });
 
-    console.log('✅ Found', files.length, 'files');
+    console.log('✅ Found', files.length, 'files for submission');
 
     res.json({ files });
   } catch (error) {
     console.error('❌ Get submission files error:', error);
-    res.status(500).json({ error: 'Failed to get files' });
+    res.status(500).json({ 
+      error: 'Failed to get files',
+      details: error.message
+    });
   }
 });
 
 // PUT /api/files/:id/approve - Approve or reject file
 router.put('/:id/approve', authenticateToken, [
-  param('id').isUUID().withMessage('Valid file ID required'),
+  param('id').isLength({ min: 1 }).withMessage('Valid file ID required'),
   body('approved').isBoolean().withMessage('Approval status required'),
   body('notes').optional().trim()
 ], async (req, res) => {
@@ -381,27 +410,31 @@ router.put('/:id/approve', authenticateToken, [
     });
 
     // Create notification for student
-    await createNotification({
-      userId: file.submission.studentId,
-      type: 'WORKFLOW_UPDATE',
-      title: `File ${approved ? 'Approved' : 'Rejected'}`,
-      message: `Your ${file.fileType.toLowerCase().replace('_', ' ')} file "${file.originalName}" has been ${approved ? 'approved' : 'rejected'}.${notes ? ` Note: ${notes}` : ''}`,
-      metadata: { submissionId: file.submissionId, fileId: file.id }
-    });
+    try {
+      await createNotification({
+        userId: file.submission.studentId,
+        type: 'WORKFLOW_UPDATE',
+        title: `File ${approved ? 'Approved' : 'Rejected'}`,
+        message: `Your ${file.fileType.toLowerCase().replace('_', ' ')} file "${file.originalName}" has been ${approved ? 'approved' : 'rejected'}.${notes ? ` Note: ${notes}` : ''}`,
+        metadata: { submissionId: file.submissionId, fileId: file.id }
+      });
+    } catch (notificationError) {
+      console.error('❌ Notification error (non-blocking):', notificationError);
+    }
 
     res.json({
       message: `File ${approved ? 'approved' : 'rejected'} successfully`,
       file: updatedFile
     });
   } catch (error) {
-    console.error('File approval error:', error);
+    console.error('❌ File approval error:', error);
     res.status(500).json({ error: 'Failed to update file approval' });
   }
 });
 
 // DELETE /api/files/:id - Delete file
 router.delete('/:id', authenticateToken, [
-  param('id').isUUID().withMessage('Valid file ID required')
+  param('id').isLength({ min: 1 }).withMessage('Valid file ID required')
 ], async (req, res) => {
   try {
     const file = await prisma.fileAttachment.findUnique({
@@ -426,7 +459,12 @@ router.delete('/:id', authenticateToken, [
     }
 
     // Delete from Wasabi
-    await deleteFromWasabi(file.filePath);
+    try {
+      await deleteFromWasabi(file.filePath);
+    } catch (storageError) {
+      console.error('❌ Storage deletion error (non-blocking):', storageError);
+      // Continue with database deletion even if storage deletion fails
+    }
 
     // Delete from database
     await prisma.fileAttachment.delete({
@@ -435,7 +473,7 @@ router.delete('/:id', authenticateToken, [
 
     res.json({ message: 'File deleted successfully' });
   } catch (error) {
-    console.error('File deletion error:', error);
+    console.error('❌ File deletion error:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
@@ -455,7 +493,7 @@ router.use((error, req, res, next) => {
       error: 'File upload error: ' + error.message,
       code: error.code
     });
-  } else if (error.message === 'File type not allowed') {
+  } else if (error.message && error.message.includes('File type not allowed')) {
     return res.status(400).json({ 
       error: 'File type not allowed. Supported types: PDF, Word documents, text files, and images.',
       code: 'INVALID_FILE_TYPE'
@@ -464,7 +502,8 @@ router.use((error, req, res, next) => {
   
   res.status(500).json({ 
     error: 'Internal server error during file upload',
-    code: 'INTERNAL_ERROR'
+    code: 'INTERNAL_ERROR',
+    details: error.message
   });
 });
 
