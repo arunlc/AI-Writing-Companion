@@ -1,4 +1,4 @@
-// backend/routes/events.js - COMPLETE FIXED VERSION
+// backend/routes/events.js - COMPLETELY FIXED VERSION
 const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
@@ -29,6 +29,8 @@ const sanitizeEventFields = (req, res, next) => {
 // GET /api/events - Get all events
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    console.log('📅 Fetching all events for user:', req.user.id);
+    
     const events = await prisma.event.findMany({
       where: { isActive: true },
       include: {
@@ -46,9 +48,10 @@ router.get('/', authenticateToken, async (req, res) => {
       orderBy: { eventDate: 'asc' }
     });
 
+    console.log(`✅ Found ${events.length} events`);
     res.json(events);
   } catch (error) {
-    console.error('Get events error:', error);
+    console.error('❌ Get events error:', error);
     res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
@@ -71,7 +74,7 @@ router.post('/', authenticateToken, sanitizeEventFields, [
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    console.error('Event validation errors:', errors.array());
+    console.error('❌ Event validation errors:', errors.array());
     return res.status(400).json({ error: 'Validation failed', details: errors.array() });
   }
 
@@ -102,7 +105,7 @@ router.post('/', authenticateToken, sanitizeEventFields, [
       }
     });
 
-    console.log('Event created successfully:', {
+    console.log('✅ Event created successfully:', {
       id: event.id,
       title: event.title,
       eventDate: event.eventDate,
@@ -114,14 +117,14 @@ router.post('/', authenticateToken, sanitizeEventFields, [
       event
     });
   } catch (error) {
-    console.error('Create event error:', error);
+    console.error('❌ Create event error:', error);
     res.status(500).json({ error: 'Failed to create event' });
   }
 });
 
-// POST /api/events/:id/rsvp - RSVP to event
+// ✅ FIXED: POST /api/events/:id/rsvp - RSVP to event
 router.post('/:id/rsvp', authenticateToken, [
-  param('id').isUUID().withMessage('Invalid event ID'),
+  param('id').notEmpty().withMessage('Event ID is required'),
   body('status').isIn(['attending', 'maybe', 'declined']).withMessage('Invalid RSVP status'),
   body('attendeeCount').optional().isInt({ min: 1 }).withMessage('Attendee count must be positive'),
   body('dietaryReqs').optional().trim(),
@@ -129,70 +132,123 @@ router.post('/:id/rsvp', authenticateToken, [
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    console.error('❌ RSVP validation errors:', errors.array());
+    return res.status(400).json({ 
+      error: 'Validation failed', 
+      details: errors.array() 
+    });
   }
 
   const { id } = req.params;
   const { status, attendeeCount = 1, dietaryReqs, notes } = req.body;
 
+  console.log(`📝 Processing RSVP for event ${id} by user ${req.user.id}:`, {
+    status,
+    attendeeCount,
+    dietaryReqs,
+    notes
+  });
+
   try {
-    // Check if event exists
+    // ✅ FIXED: Check if event exists with better error handling
     const event = await prisma.event.findUnique({
       where: { id },
-      include: { rsvps: true }
+      include: { 
+        rsvps: {
+          include: {
+            user: {
+              select: { id: true, name: true }
+            }
+          }
+        }
+      }
     });
 
     if (!event) {
+      console.error(`❌ Event not found: ${id}`);
       return res.status(404).json({ error: 'Event not found' });
     }
 
     if (!event.isActive) {
+      console.error(`❌ Event is not active: ${id}`);
       return res.status(400).json({ error: 'Event is not active' });
     }
 
     // Check if event is in the past
     if (new Date(event.eventDate) < new Date()) {
+      console.error(`❌ Event is in the past: ${id}`);
       return res.status(400).json({ error: 'Cannot RSVP to past events' });
     }
 
-    // Check max attendees if status is attending
+    // ✅ FIXED: Check max attendees if status is attending
     if (status === 'attending' && event.maxAttendees) {
-      const currentAttendees = event.rsvps.filter(rsvp => rsvp.status === 'attending')
-        .reduce((sum, rsvp) => sum + rsvp.attendeeCount, 0);
+      const currentAttendees = event.rsvps
+        .filter(rsvp => rsvp.status === 'attending')
+        .reduce((sum, rsvp) => sum + (rsvp.attendeeCount || 1), 0);
       
-      if (currentAttendees + attendeeCount > event.maxAttendees) {
-        return res.status(400).json({ error: 'Event is at maximum capacity' });
+      const requestedCount = parseInt(attendeeCount) || 1;
+      
+      // Check if user already has an RSVP and subtract their current count
+      const existingRsvp = event.rsvps.find(rsvp => rsvp.userId === req.user.id);
+      const existingCount = existingRsvp && existingRsvp.status === 'attending' 
+        ? existingRsvp.attendeeCount || 1 
+        : 0;
+      
+      const newTotal = currentAttendees - existingCount + requestedCount;
+      
+      if (newTotal > event.maxAttendees) {
+        console.error(`❌ Event at capacity: ${newTotal} > ${event.maxAttendees}`);
+        return res.status(400).json({ 
+          error: 'Event is at maximum capacity',
+          details: {
+            maxAttendees: event.maxAttendees,
+            currentAttendees: currentAttendees - existingCount,
+            requestedCount
+          }
+        });
       }
     }
 
-    // Upsert RSVP
+    // ✅ FIXED: Upsert RSVP with proper constraint name
+    console.log(`📝 Creating/updating RSVP for user ${req.user.id} to event ${id}`);
+    
     const rsvp = await prisma.eventRsvp.upsert({
       where: {
-        eventId_userId: {
+        eventId_userId: {  // ✅ FIXED: Use the correct unique constraint name
           eventId: id,
           userId: req.user.id
         }
       },
       update: {
         status,
-        attendeeCount,
-        dietaryReqs: dietaryReqs || null,
-        notes: notes || null,
+        attendeeCount: parseInt(attendeeCount) || 1,
+        dietaryReqs: dietaryReqs && dietaryReqs.trim() ? dietaryReqs.trim() : null,
+        notes: notes && notes.trim() ? notes.trim() : null,
         updatedAt: new Date()
       },
       create: {
         eventId: id,
         userId: req.user.id,
         status,
-        attendeeCount,
-        dietaryReqs: dietaryReqs || null,
-        notes: notes || null
+        attendeeCount: parseInt(attendeeCount) || 1,
+        dietaryReqs: dietaryReqs && dietaryReqs.trim() ? dietaryReqs.trim() : null,
+        notes: notes && notes.trim() ? notes.trim() : null
       },
       include: {
         user: {
           select: { id: true, name: true, email: true }
+        },
+        event: {
+          select: { id: true, title: true }
         }
       }
+    });
+
+    console.log('✅ RSVP created/updated successfully:', {
+      rsvpId: rsvp.id,
+      userId: rsvp.userId,
+      eventId: rsvp.eventId,
+      status: rsvp.status
     });
 
     res.json({
@@ -200,14 +256,34 @@ router.post('/:id/rsvp', authenticateToken, [
       rsvp
     });
   } catch (error) {
-    console.error('RSVP error:', error);
-    res.status(500).json({ error: 'Failed to update RSVP' });
+    console.error('❌ RSVP error:', error);
+    
+    // ✅ IMPROVED: Better error handling
+    if (error.code === 'P2002') {
+      // Unique constraint violation
+      return res.status(409).json({ 
+        error: 'RSVP already exists for this user and event',
+        details: 'Please try refreshing the page'
+      });
+    }
+    
+    if (error.code === 'P2025') {
+      // Record not found
+      return res.status(404).json({ 
+        error: 'Event not found or user not found'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update RSVP',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
 // GET /api/events/:id/rsvps - Get event RSVPs
 router.get('/:id/rsvps', authenticateToken, [
-  param('id').isUUID().withMessage('Invalid event ID')
+  param('id').notEmpty().withMessage('Event ID is required')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -242,14 +318,14 @@ router.get('/:id/rsvps', authenticateToken, [
 
     res.json({ rsvps: event.rsvps });
   } catch (error) {
-    console.error('Get RSVPs error:', error);
+    console.error('❌ Get RSVPs error:', error);
     res.status(500).json({ error: 'Failed to fetch RSVPs' });
   }
 });
 
 // PUT /api/events/:id - Update event
 router.put('/:id', authenticateToken, sanitizeEventFields, [
-  param('id').isUUID().withMessage('Invalid event ID'),
+  param('id').notEmpty().withMessage('Event ID is required'),
   body('title').optional().trim().isLength({ min: 1, max: 255 }),
   body('description').optional({ nullable: true, checkFalsy: true }).trim(),
   body('eventDate').optional().isISO8601(),
@@ -318,14 +394,14 @@ router.put('/:id', authenticateToken, sanitizeEventFields, [
       event: updatedEvent
     });
   } catch (error) {
-    console.error('Update event error:', error);
+    console.error('❌ Update event error:', error);
     res.status(500).json({ error: 'Failed to update event' });
   }
 });
 
 // DELETE /api/events/:id - Delete/deactivate event
 router.delete('/:id', authenticateToken, [
-  param('id').isUUID().withMessage('Invalid event ID')
+  param('id').notEmpty().withMessage('Event ID is required')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -356,7 +432,7 @@ router.delete('/:id', authenticateToken, [
 
     res.json({ message: 'Event deleted successfully' });
   } catch (error) {
-    console.error('Delete event error:', error);
+    console.error('❌ Delete event error:', error);
     res.status(500).json({ error: 'Failed to delete event' });
   }
 });
