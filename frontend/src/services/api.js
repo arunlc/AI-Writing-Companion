@@ -148,6 +148,8 @@ export const approvalsAPI = {
   getBySubmission: (submissionId) => api.get(`/approvals/submission/${submissionId}`),
 };
 
+// frontend/src/services/api.js - UPDATED EVENTS API SECTION ONLY
+
 export const eventsAPI = {
   getAll: () => {
     console.log('📞 Calling events API: GET /events');
@@ -174,7 +176,7 @@ export const eventsAPI = {
   rsvp: (eventId, data) => {
     console.log(`📞 Calling RSVP API: POST /events/${eventId}/rsvp`, data);
     
-    // ✅ VALIDATION: Check parameters before making request
+    // Validation
     if (!eventId) {
       const error = new Error('Event ID is required for RSVP');
       console.error('❌ RSVP validation error:', error.message);
@@ -207,6 +209,7 @@ export const eventsAPI = {
     });
   },
   
+  // ✅ NEW: Get RSVPs for an event (admin only)
   getRsvps: (eventId) => {
     console.log(`📞 Calling get RSVPs API: GET /events/${eventId}/rsvps`);
     
@@ -220,7 +223,11 @@ export const eventsAPI = {
       console.log('✅ Get RSVPs API success:', response.data);
       return response;
     }).catch(error => {
-      console.error('❌ Get RSVPs API error:', error);
+      console.error('❌ Get RSVPs API error:', {
+        eventId,
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      });
       throw error;
     });
   },
