@@ -1,3 +1,4 @@
+// frontend/src/pages/events/EventsList.jsx - COMPLETE PROPER FIX
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,32 +33,40 @@ const EventsList = () => {
     maxAttendees: ''
   });
 
-  const { data: events = [], isLoading, error } = useQuery(
+  // ✅ PROPER FIX: Correct data extraction from API response
+  const { data: eventsResponse, isLoading, error } = useQuery(
     'events',
     eventsAPI.getAll,
     {
       refetchOnWindowFocus: false,
-      staleTime: 60000
+      staleTime: 60000,
+      onSuccess: (response) => {
+        console.log('📅 Events API Response:', response);
+        console.log('📊 Events Data:', response.data);
+        console.log('🔢 Events Count:', response.data?.length || 0);
+      },
+      onError: (error) => {
+        console.error('❌ Events API Error:', error);
+        console.error('📋 Error Details:', error.response?.data);
+      }
     }
   );
 
+  // ✅ PROPER FIX: Extract events array from response.data
+  const events = eventsResponse?.data || [];
+
   const createEventMutation = useMutation(eventsAPI.create, {
-    onSuccess: () => {
+    onSuccess: (response) => {
+      console.log('✅ Event created:', response.data);
       queryClient.invalidateQueries('events');
       setShowCreateForm(false);
-      setNewEvent({
-        title: '',
-        description: '',
-        eventDate: '',
-        location: '',
-        isVirtual: false,
-        meetingLink: '',
-        maxAttendees: ''
-      });
+      resetNewEventForm();
       toast.success('Event created successfully');
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to create event');
+      console.error('❌ Event creation error:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to create event';
+      toast.error(errorMessage);
     }
   });
 
@@ -69,24 +78,45 @@ const EventsList = () => {
         toast.success('RSVP updated successfully');
       },
       onError: (error) => {
-        toast.error(error.response?.data?.error || 'Failed to update RSVP');
+        console.error('❌ RSVP error:', error);
+        const errorMessage = error.response?.data?.error || 'Failed to update RSVP';
+        toast.error(errorMessage);
       }
     }
   );
 
+  const resetNewEventForm = () => {
+    setNewEvent({
+      title: '',
+      description: '',
+      eventDate: '',
+      location: '',
+      isVirtual: false,
+      meetingLink: '',
+      maxAttendees: ''
+    });
+  };
+
   const handleCreateEvent = (e) => {
     e.preventDefault();
     
+    // ✅ PROPER FIX: Clean data before sending (prevents validation errors)
     const eventData = {
-      ...newEvent,
+      title: newEvent.title.trim(),
+      description: newEvent.description.trim() || undefined,
       eventDate: new Date(newEvent.eventDate).toISOString(),
-      maxAttendees: newEvent.maxAttendees ? parseInt(newEvent.maxAttendees) : null
+      isVirtual: newEvent.isVirtual,
+      location: newEvent.isVirtual ? undefined : newEvent.location.trim() || undefined,
+      meetingLink: newEvent.isVirtual && newEvent.meetingLink.trim() ? newEvent.meetingLink.trim() : undefined,
+      maxAttendees: newEvent.maxAttendees && newEvent.maxAttendees.trim() ? parseInt(newEvent.maxAttendees) : undefined
     };
 
+    console.log('📤 Creating event with data:', eventData);
     createEventMutation.mutate(eventData);
   };
 
   const handleRSVP = (eventId, status) => {
+    console.log('📝 RSVP:', { eventId, status });
     rsvpMutation.mutate({ eventId, status });
   };
 
@@ -129,27 +159,56 @@ const EventsList = () => {
     return ['ADMIN', 'OPERATIONS', 'SALES'].includes(user?.role);
   };
 
+  // ✅ PROPER ERROR HANDLING
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner size="large" />
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-64">
+            <LoadingSpinner size="large" />
+            <span className="ml-3 text-gray-600">Loading events...</span>
+          </div>
         </div>
       </div>
     );
   }
 
   if (error) {
+    console.error('📋 Events page error:', error);
     return (
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <p className="text-red-700">Failed to load events: {error.message}</p>
+            <div className="flex">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Failed to load events</h3>
+                <p className="mt-1 text-sm text-red-700">
+                  {error.response?.data?.error || error.message || 'Unknown error occurred'}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => queryClient.invalidateQueries('events')}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   }
+
+  // ✅ PROPER DEBUG INFO
+  console.log('🎪 Final Events to Render:', events);
+  console.log('📊 Events Array Length:', events.length);
+  console.log('🎭 Sample Event:', events[0]);
 
   return (
     <div className="p-6">
@@ -188,7 +247,7 @@ const EventsList = () => {
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="Event Title"
+                  label="Event Title *"
                   required
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
@@ -196,7 +255,7 @@ const EventsList = () => {
                 />
                 
                 <Input
-                  label="Date & Time"
+                  label="Date & Time *"
                   type="datetime-local"
                   required
                   value={newEvent.eventDate}
@@ -259,7 +318,10 @@ const EventsList = () => {
               </div>
 
               <div className="flex space-x-3">
-                <Button type="submit" disabled={createEventMutation.isLoading}>
+                <Button 
+                  type="submit" 
+                  disabled={createEventMutation.isLoading}
+                >
                   {createEventMutation.isLoading ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
@@ -269,7 +331,11 @@ const EventsList = () => {
                     'Create Event'
                   )}
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={() => setShowCreateForm(false)}
+                >
                   Cancel
                 </Button>
               </div>
@@ -277,7 +343,7 @@ const EventsList = () => {
           </div>
         )}
 
-        {/* Events Grid */}
+        {/* ✅ PROPER EVENTS DISPLAY */}
         {events.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => {
@@ -289,7 +355,7 @@ const EventsList = () => {
                 <div
                   key={event.id}
                   className={clsx(
-                    'bg-white rounded-lg shadow border overflow-hidden',
+                    'bg-white rounded-lg shadow border overflow-hidden transition-shadow hover:shadow-md',
                     isPast && 'opacity-75'
                   )}
                 >
