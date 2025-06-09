@@ -1,4 +1,4 @@
-// frontend/src/components/files/FileUpload.jsx - FIXED VERSION
+// frontend/src/components/files/FileUpload.jsx - FIXED FOR TEXT EXTRACTION
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import { filesAPI } from '../../services/api';
@@ -22,7 +22,8 @@ const FileUpload = ({
   accept = '',
   maxSize = 10 * 1024 * 1024, // 10MB limit
   multiple = false,
-  className = ''
+  className = '',
+  extractText = true // ✅ NEW: Enable text extraction by default
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -30,7 +31,7 @@ const FileUpload = ({
   const fileInputRef = useRef(null);
   const queryClient = useQueryClient();
 
-  // ✅ FIXED: Proper upload mutation with correct error handling
+  // ✅ FIXED: Upload mutation with text extraction support
   const uploadMutation = useMutation(filesAPI.upload, {
     onSuccess: (data, variables) => {
       // Extract filename from FormData
@@ -175,7 +176,7 @@ const FileUpload = ({
     });
   };
 
-  // ✅ FIXED: Simplified upload function using the mutation directly
+  // ✅ FIXED: Upload function with text extraction parameter
   const uploadAllFiles = async () => {
     console.log('📤 Starting batch upload for', selectedFiles.length, 'files');
     
@@ -183,17 +184,28 @@ const FileUpload = ({
       try {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('submissionId', submissionId);
+        formData.append('submissionId', submissionId || 'null');
         formData.append('fileType', fileType);
+        
+        // ✅ CRITICAL: Add extractText parameter for text extraction
+        if (extractText) {
+          formData.append('extractText', 'true');
+        }
 
         console.log('📤 Starting upload for:', file.name);
+        console.log('🔧 Upload params:', {
+          fileName: file.name,
+          submissionId: submissionId || 'null',
+          fileType,
+          extractText
+        });
 
         setUploadProgress(prev => ({
           ...prev,
           [file.name]: { status: 'uploading', progress: 25 }
         }));
 
-        // Use the mutation directly - no need for custom XMLHttpRequest
+        // Use the mutation directly
         await uploadMutation.mutateAsync(formData);
         
       } catch (error) {
@@ -267,6 +279,17 @@ const FileUpload = ({
     }
   };
 
+  // ✅ NEW: Check if file supports text extraction
+  const supportsTextExtraction = (file) => {
+    const textTypes = [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+      'application/pdf'
+    ];
+    return textTypes.includes(file.type);
+  };
+
   return (
     <div className={clsx('w-full', className)}>
       {/* Upload Area */}
@@ -316,7 +339,9 @@ const FileUpload = ({
               <p>Allowed types: {accept.replace(/,/g, ', ')}</p>
             )}
             {multiple && <p>Multiple files allowed</p>}
-            <p className="text-green-600">✅ Files upload to secure cloud storage</p>
+            {extractText && (
+              <p className="text-blue-600">✅ Automatic text extraction enabled</p>
+            )}
           </div>
         </div>
       </div>
@@ -331,6 +356,7 @@ const FileUpload = ({
           <div className="space-y-3">
             {selectedFiles.map((file) => {
               const progress = uploadProgress[file.name];
+              const canExtractText = supportsTextExtraction(file);
               
               return (
                 <div
@@ -346,6 +372,13 @@ const FileUpload = ({
                       <p className="text-xs text-gray-500">
                         {formatFileSize(file.size)} • {file.type || 'Unknown type'}
                       </p>
+                      
+                      {/* ✅ NEW: Text extraction indicator */}
+                      {extractText && canExtractText && (
+                        <p className="text-xs text-blue-600">
+                          📄 Text extraction will be performed
+                        </p>
+                      )}
                       
                       {progress && (
                         <div className="mt-2">
@@ -440,6 +473,9 @@ const FileUpload = ({
         <div className="text-xs text-blue-800 space-y-1">
           <p>• <strong>Max size:</strong> {formatFileSize(maxSize)} per file</p>
           <p>• <strong>Formats:</strong> PDF, Word documents, images, text files</p>
+          {extractText && (
+            <p>• <strong>Text extraction:</strong> Automatic for .docx, .doc, .pdf, .txt files</p>
+          )}
           <p>• <strong>Tips:</strong> Smaller files upload faster and more reliably</p>
           <p>• <strong>Issues?</strong> Try refreshing the page or using a smaller file</p>
         </div>
