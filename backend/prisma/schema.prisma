@@ -139,7 +139,7 @@ model WorkflowStage {
 
 model FileAttachment {
   id           String   @id @default(cuid())
-  submissionId String   @map("submission_id")
+  submissionId String?  @map("submission_id")  // ← FIXED: Made optional with ?
   fileType     FileType @map("file_type")
   filePath     String   @map("file_path") // Wasabi storage path
   originalName String   @map("original_name")
@@ -149,14 +149,14 @@ model FileAttachment {
   isApproved   Boolean? @map("is_approved") // null = pending, true = approved, false = rejected
   version      Int      @default(1)
   createdAt    DateTime @default(now()) @map("created_at")
+  metadata     Json?    // Store extraction data and other metadata
 
-  // Relations
-  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  uploadedBy User       @relation(fields: [uploadedById], references: [id])
+  // Relations - submission is now optional
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  uploadedBy User        @relation(fields: [uploadedById], references: [id])
 
   @@map("file_attachments")
 }
-
 model EditorAssignment {
   id         String    @id @default(cuid())
   studentId  String    @map("student_id")
