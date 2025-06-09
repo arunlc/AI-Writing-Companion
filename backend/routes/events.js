@@ -1,3 +1,4 @@
+// backend/routes/events.js - COMPLETE FIXED VERSION
 const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
@@ -5,6 +6,25 @@ const { authenticateToken } = require('./auth');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Custom middleware to handle empty strings and null values in optional fields
+const sanitizeEventFields = (req, res, next) => {
+  // Convert empty strings to undefined for optional fields
+  if (req.body.meetingLink === '') {
+    req.body.meetingLink = undefined;
+  }
+  if (req.body.location === '') {
+    req.body.location = undefined;
+  }
+  if (req.body.description === '') {
+    req.body.description = undefined;
+  }
+  // Convert null or empty string to undefined for maxAttendees
+  if (req.body.maxAttendees === null || req.body.maxAttendees === '') {
+    req.body.maxAttendees = undefined;
+  }
+  next();
+};
 
 // GET /api/events - Get all events
 router.get('/', authenticateToken, async (req, res) => {
@@ -34,17 +54,24 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // POST /api/events - Create new event
-router.post('/', authenticateToken, [
+router.post('/', authenticateToken, sanitizeEventFields, [
   body('title').trim().isLength({ min: 1, max: 255 }).withMessage('Title is required'),
-  body('description').optional().trim(),
+  body('description').optional({ nullable: true, checkFalsy: true }).trim(),
   body('eventDate').isISO8601().withMessage('Valid event date is required'),
-  body('location').optional().trim(),
+  body('location').optional({ nullable: true, checkFalsy: true }).trim(),
   body('isVirtual').isBoolean().withMessage('isVirtual must be boolean'),
-  body('meetingLink').optional().isURL().withMessage('Meeting link must be valid URL'),
-  body('maxAttendees').optional().isInt({ min: 1 }).withMessage('Max attendees must be positive number')
+  body('meetingLink')
+    .optional({ nullable: true, checkFalsy: true })
+    .isURL()
+    .withMessage('Meeting link must be valid URL if provided'),
+  body('maxAttendees')
+    .optional({ nullable: true, checkFalsy: true })
+    .isInt({ min: 1 })
+    .withMessage('Max attendees must be positive number if provided')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.error('Event validation errors:', errors.array());
     return res.status(400).json({ error: 'Validation failed', details: errors.array() });
   }
 
@@ -59,12 +86,12 @@ router.post('/', authenticateToken, [
     const event = await prisma.event.create({
       data: {
         title,
-        description: description || null,
+        description: description && description.trim() ? description.trim() : null,
         eventDate: new Date(eventDate),
-        location: location || null,
+        location: location && location.trim() ? location.trim() : null,
         isVirtual,
-        meetingLink: meetingLink || null,
-        maxAttendees: maxAttendees || null,
+        meetingLink: meetingLink && meetingLink.trim() ? meetingLink.trim() : null,
+        maxAttendees: maxAttendees ? parseInt(maxAttendees) : null,
         createdById: req.user.id
       },
       include: {
@@ -73,6 +100,13 @@ router.post('/', authenticateToken, [
         },
         rsvps: true
       }
+    });
+
+    console.log('Event created successfully:', {
+      id: event.id,
+      title: event.title,
+      eventDate: event.eventDate,
+      isVirtual: event.isVirtual
     });
 
     res.status(201).json({
@@ -214,15 +248,21 @@ router.get('/:id/rsvps', authenticateToken, [
 });
 
 // PUT /api/events/:id - Update event
-router.put('/:id', authenticateToken, [
+router.put('/:id', authenticateToken, sanitizeEventFields, [
   param('id').isUUID().withMessage('Invalid event ID'),
   body('title').optional().trim().isLength({ min: 1, max: 255 }),
-  body('description').optional().trim(),
+  body('description').optional({ nullable: true, checkFalsy: true }).trim(),
   body('eventDate').optional().isISO8601(),
-  body('location').optional().trim(),
+  body('location').optional({ nullable: true, checkFalsy: true }).trim(),
   body('isVirtual').optional().isBoolean(),
-  body('meetingLink').optional().isURL(),
-  body('maxAttendees').optional().isInt({ min: 1 })
+  body('meetingLink')
+    .optional({ nullable: true, checkFalsy: true })
+    .isURL()
+    .withMessage('Meeting link must be valid URL if provided'),
+  body('maxAttendees')
+    .optional({ nullable: true, checkFalsy: true })
+    .isInt({ min: 1 })
+    .withMessage('Max attendees must be positive number if provided')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -249,12 +289,12 @@ router.put('/:id', authenticateToken, [
     const { title, description, eventDate, location, isVirtual, meetingLink, maxAttendees } = req.body;
 
     if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description || null;
+    if (description !== undefined) updateData.description = description && description.trim() ? description.trim() : null;
     if (eventDate !== undefined) updateData.eventDate = new Date(eventDate);
-    if (location !== undefined) updateData.location = location || null;
+    if (location !== undefined) updateData.location = location && location.trim() ? location.trim() : null;
     if (isVirtual !== undefined) updateData.isVirtual = isVirtual;
-    if (meetingLink !== undefined) updateData.meetingLink = meetingLink || null;
-    if (maxAttendees !== undefined) updateData.maxAttendees = maxAttendees || null;
+    if (meetingLink !== undefined) updateData.meetingLink = meetingLink && meetingLink.trim() ? meetingLink.trim() : null;
+    if (maxAttendees !== undefined) updateData.maxAttendees = maxAttendees ? parseInt(maxAttendees) : null;
 
     const updatedEvent = await prisma.event.update({
       where: { id },
