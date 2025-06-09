@@ -226,9 +226,15 @@ router.post('/upload', authenticateToken, (req, res, next) => {
   });
 
   try {
-    // Check submission access if submissionId provided
+    // ✅ FIXED: Proper validation for submission ID - handle 'null' string
     let submission = null;
-    if (submissionId) {
+    const hasValidSubmissionId = submissionId && 
+                                submissionId !== 'null' && 
+                                submissionId !== 'undefined' && 
+                                submissionId.trim() !== '';
+
+    if (hasValidSubmissionId) {
+      console.log('🔍 Looking up submission:', submissionId);
       submission = await prisma.submission.findUnique({
         where: { id: submissionId },
         include: { student: true }
@@ -239,7 +245,7 @@ router.post('/upload', authenticateToken, (req, res, next) => {
         return res.status(404).json({ error: 'Submission not found' });
       }
 
-      // Check permissions
+      // Check permissions only when submission exists
       const hasAccess = 
         req.user.role === 'ADMIN' ||
         req.user.role === 'OPERATIONS' ||
@@ -250,6 +256,10 @@ router.post('/upload', authenticateToken, (req, res, next) => {
         console.error('❌ Access denied for user:', req.user.id);
         return res.status(403).json({ error: 'Access denied' });
       }
+      
+      console.log('✅ Submission access validated');
+    } else {
+      console.log('📁 Upload without submission ID - creating temporary file');
     }
 
     // Generate file path
@@ -261,9 +271,10 @@ router.post('/upload', authenticateToken, (req, res, next) => {
       return res.status(400).json({ error: 'File must have an extension' });
     }
     
-    const fileName = submissionId 
-      ? `${submissionId}/${fileType}/${timestamp}.${fileExtension}`
-      : `temp/${timestamp}.${fileExtension}`;
+    // ✅ FIXED: Different path structure for temporary vs submission files
+    const fileName = hasValidSubmissionId 
+      ? `submissions/${submissionId}/${fileType}/${timestamp}.${fileExtension}`
+      : `temp/${req.user.id}/${fileType}/${timestamp}.${fileExtension}`;
     
     console.log('☁️ Uploading to storage:', fileName);
 
@@ -306,7 +317,7 @@ router.post('/upload', authenticateToken, (req, res, next) => {
       }
     }
 
-    // Save file record to database
+    // ✅ FIXED: Save file record to database with proper data structure
     const fileData = {
       fileType,
       filePath: fileName,
@@ -317,13 +328,18 @@ router.post('/upload', authenticateToken, (req, res, next) => {
       metadata: {
         uploadedAt: new Date().toISOString(),
         extractedText: extractedText,
-        extractionMetadata: extractionMetadata
+        extractionMetadata: extractionMetadata,
+        isTemporary: !hasValidSubmissionId, // Mark as temporary if no submission
+        userId: req.user.id // Store user ID for temporary files
       }
     };
 
-    // Add submissionId if provided
-    if (submissionId) {
+    // Only add submissionId if it's valid
+    if (hasValidSubmissionId) {
       fileData.submissionId = submissionId;
+      console.log('📎 Attaching file to submission:', submissionId);
+    } else {
+      console.log('📁 Creating temporary file record');
     }
 
     const fileRecord = await prisma.fileAttachment.create({
@@ -364,16 +380,26 @@ router.post('/upload', authenticateToken, (req, res, next) => {
 
     console.log('✅ Upload completed successfully');
 
-    // Return response with extracted text if available
+    // ✅ ENHANCED: Return response with extracted text and additional metadata
     const response = {
       message: 'File uploaded successfully',
-      file: fileRecord
+      file: fileRecord,
+      isTemporary: !hasValidSubmissionId
     };
 
     // Include extracted text in response if available
     if (extractedText) {
       response.extractedText = extractedText;
       response.extractionMetadata = extractionMetadata;
+    }
+
+    // Add helpful information for temporary files
+    if (!hasValidSubmissionId) {
+      response.info = {
+        message: 'File uploaded as temporary file. It will be associated with a submission when you create one.',
+        canBeUsedFor: 'Creating new submissions with extracted text',
+        fileId: fileRecord.id
+      };
     }
 
     res.status(201).json(response);
@@ -418,10 +444,11 @@ router.get('/:id', authenticateToken, [
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Check permissions
+    // Check permissions - include temporary file access for the uploader
     const hasAccess = 
       req.user.role === 'ADMIN' ||
       req.user.role === 'OPERATIONS' ||
+      file.uploadedById === req.user.id || // Allow uploader to access their own files
       (file.submission && file.submission.studentId === req.user.id) ||
       (file.submission && file.submission.editorId === req.user.id);
 
@@ -632,6 +659,7 @@ router.get('/:id/extract-text', authenticateToken, [
     const hasAccess = 
       req.user.role === 'ADMIN' ||
       req.user.role === 'OPERATIONS' ||
+      file.uploadedById === req.user.id || // Allow uploader to extract from their own files
       (file.submission && file.submission.studentId === req.user.id) ||
       (file.submission && file.submission.editorId === req.user.id);
 
