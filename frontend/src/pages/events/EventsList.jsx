@@ -1,4 +1,4 @@
-// frontend/src/pages/events/EventsList.jsx - FIXED VERSION
+// frontend/src/pages/events/EventsList.jsx - COMPLETE FIXED VERSION
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,13 +41,70 @@ const EventsList = () => {
     maxAttendees: ''
   });
 
-  // ✅ FIXED: Helper functions defined at component level
+  // Helper functions defined at component level
   const isAdmin = () => {
     return ['ADMIN', 'OPERATIONS', 'SALES'].includes(user?.role);
   };
 
   const canCreateEvents = () => {
     return isAdmin();
+  };
+
+  const formatEventDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = date.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      const formattedDate = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      const formattedTime = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      let timeIndicator = '';
+      if (diffDays === 0) timeIndicator = ' (Today)';
+      else if (diffDays === 1) timeIndicator = ' (Tomorrow)';
+      else if (diffDays > 0 && diffDays <= 7) timeIndicator = ` (In ${diffDays} days)`;
+      else if (diffDays < 0) timeIndicator = ' (Past)';
+
+      return `${formattedDate} at ${formattedTime}${timeIndicator}`;
+    } catch (error) {
+      console.error('❌ Date formatting error:', error);
+      return 'Invalid date';
+    }
+  };
+
+  const isEventPast = (dateString) => {
+    try {
+      return new Date(dateString) < new Date();
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const getUserRSVP = (event) => {
+    if (!event?.rsvps || !Array.isArray(event.rsvps) || !user?.id) {
+      return null;
+    }
+    return event.rsvps.find(rsvp => rsvp.userId === user.id) || null;
+  };
+
+  const getAttendeesByStatus = (event) => {
+    if (!event?.rsvps) return { attending: [], maybe: [], declined: [] };
+    
+    return {
+      attending: event.rsvps.filter(rsvp => rsvp.status === 'attending'),
+      maybe: event.rsvps.filter(rsvp => rsvp.status === 'maybe'),
+      declined: event.rsvps.filter(rsvp => rsvp.status === 'declined')
+    };
   };
 
   // Fetch events
@@ -199,64 +256,7 @@ const EventsList = () => {
     rsvpMutation.mutate({ eventId, status });
   };
 
-  const formatEventDate = (dateString) => {
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = date.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const formattedDate = date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
-      const formattedTime = date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
-      let timeIndicator = '';
-      if (diffDays === 0) timeIndicator = ' (Today)';
-      else if (diffDays === 1) timeIndicator = ' (Tomorrow)';
-      else if (diffDays > 0 && diffDays <= 7) timeIndicator = ` (In ${diffDays} days)`;
-      else if (diffDays < 0) timeIndicator = ' (Past)';
-
-      return `${formattedDate} at ${formattedTime}${timeIndicator}`;
-    } catch (error) {
-      console.error('❌ Date formatting error:', error);
-      return 'Invalid date';
-    }
-  };
-
-  const isEventPast = (dateString) => {
-    try {
-      return new Date(dateString) < new Date();
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const getUserRSVP = (event) => {
-    if (!event?.rsvps || !Array.isArray(event.rsvps) || !user?.id) {
-      return null;
-    }
-    return event.rsvps.find(rsvp => rsvp.userId === user.id) || null;
-  };
-
-  const getAttendeesByStatus = (event) => {
-    if (!event?.rsvps) return { attending: [], maybe: [], declined: [] };
-    
-    return {
-      attending: event.rsvps.filter(rsvp => rsvp.status === 'attending'),
-      maybe: event.rsvps.filter(rsvp => rsvp.status === 'maybe'),
-      declined: event.rsvps.filter(rsvp => rsvp.status === 'declined')
-    };
-  };
-
-  // ✅ FIXED: RSVPModal component moved inside main component
+  // RSVPModal component
   const RSVPModal = ({ event, onClose }) => {
     const attendees = getAttendeesByStatus(event);
     
@@ -834,6 +834,9 @@ const EventsList = () => {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
 };
 
 export default EventsList;
