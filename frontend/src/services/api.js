@@ -269,12 +269,82 @@ export const eventsAPI = {
   }
 };
 
-export const reviewsAPI = {
-  getPending: () => api.get('/reviews/pending'),
-  submit: (submissionId, data) => api.post(`/reviews/${submissionId}`, data),
-  update: (submissionId, data) => api.put(`/reviews/${submissionId}`, data),
-};
+// frontend/src/services/api.js - FIXED REVIEWS API SECTION ONLY
 
+export const reviewsAPI = {
+  getPending: () => {
+    console.log('📞 Calling reviews API: GET /reviews/pending');
+    return api.get('/reviews/pending').then(response => {
+      console.log('✅ Reviews pending API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Reviews pending API error:', error);
+      throw error;
+    });
+  },
+  
+  submit: (submissionId, data) => {
+    console.log(`📞 Calling reviews API: POST /reviews/${submissionId}`, data);
+    
+    // Validation
+    if (!submissionId) {
+      const error = new Error('Submission ID is required for review submission');
+      console.error('❌ Review validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (!data || typeof data.plagiarismScore === 'undefined' || !data.plagiarismNotes) {
+      const error = new Error('Plagiarism score and notes are required');
+      console.error('❌ Review validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (typeof data.passed !== 'boolean') {
+      const error = new Error('Passed status must be boolean');
+      console.error('❌ Review validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    // Ensure proper data structure
+    const reviewData = {
+      plagiarismScore: parseInt(data.plagiarismScore),
+      plagiarismNotes: data.plagiarismNotes.trim(),
+      passed: data.passed,
+      reviewedBy: data.reviewedBy || undefined // Optional
+    };
+    
+    return api.post(`/reviews/${submissionId}`, reviewData).then(response => {
+      console.log('✅ Review submit API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Review submit API error:', {
+        submissionId,
+        data: reviewData,
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      });
+      throw error;
+    });
+  },
+  
+  update: (submissionId, data) => {
+    console.log(`📞 Calling reviews API: PUT /reviews/${submissionId}`, data);
+    
+    if (!submissionId) {
+      const error = new Error('Submission ID is required for review update');
+      console.error('❌ Review update validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.put(`/reviews/${submissionId}`, data).then(response => {
+      console.log('✅ Review update API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Review update API error:', error);
+      throw error;
+    });
+  }
+};
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
   getSubmissions: () => api.get('/dashboard/submissions'),
