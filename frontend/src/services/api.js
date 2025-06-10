@@ -97,16 +97,63 @@ api.interceptors.response.use(
 );
 
 // API service functions
+// frontend/src/services/api.js - UPDATED AUTH API SECTION ONLY
+
+// API service functions
 export const authAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (userData) => api.post('/auth/register', userData),
   getProfile: () => api.get('/auth/profile'),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (token, password) => api.post(`/auth/reset-password/${token}`, { password }),
+  
+  // ✅ ENHANCED: Password Reset Functions
+  forgotPassword: (email) => {
+    console.log('📞 Calling forgot password API:', { email });
+    return api.post('/auth/forgot-password', { email }).then(response => {
+      console.log('✅ Forgot password API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Forgot password API error:', error);
+      throw error;
+    });
+  },
+  
+  resetPassword: (token, email, password) => {
+    console.log('📞 Calling reset password API:', { token: token.substring(0, 8) + '...', email });
+    
+    // Validation
+    if (!token) {
+      const error = new Error('Reset token is required');
+      console.error('❌ Reset password validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (!email) {
+      const error = new Error('Email is required');
+      console.error('❌ Reset password validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    if (!password || password.length < 8) {
+      const error = new Error('Password must be at least 8 characters');
+      console.error('❌ Reset password validation error:', error.message);
+      return Promise.reject(error);
+    }
+    
+    return api.post('/auth/reset-password', { token, email, password }).then(response => {
+      console.log('✅ Reset password API success:', response.data);
+      return response;
+    }).catch(error => {
+      console.error('❌ Reset password API error:', {
+        status: error.response?.status,
+        error: error.response?.data || error.message
+      });
+      throw error;
+    });
+  },
+  
   changePassword: (currentPassword, newPassword) => 
     api.post('/auth/change-password', { currentPassword, newPassword }),
 };
-
 export const submissionsAPI = {
   getAll: (params) => api.get('/submissions', { params }),
   getById: (id) => api.get(`/submissions/${id}`),
