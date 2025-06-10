@@ -1,9 +1,12 @@
+// frontend/src/App.jsx - UPDATED WITH PASSWORD RESET ROUTES
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import ForgotPassword from './pages/auth/ForgotPassword'; // ✅ NEW
+import ResetPassword from './pages/auth/ResetPassword';   // ✅ NEW
 import Dashboard from './pages/dashboard/Dashboard';
 import SubmissionsList from './pages/submissions/SubmissionsList';
 import NewSubmission from './pages/submissions/NewSubmission';
@@ -78,6 +81,24 @@ function App() {
             </PublicRoute>
           }
         />
+        
+        {/* ✅ NEW: Password Reset Routes */}
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPassword />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PublicRoute>
+              <ResetPassword />
+            </PublicRoute>
+          }
+        />
 
         {/* Protected Routes */}
         <Route
@@ -112,13 +133,14 @@ function App() {
                   />
 
                   <Route 
-                    path="/admin/editor-assignment"  // ✅ ADD THIS ROUTE
+                    path="/admin/editor-assignment"
                     element={
                       <ProtectedRoute allowedRoles={['ADMIN']}>
                         <EditorAssignment />
                       </ProtectedRoute>
                     } 
                   />
+                  
                   {/* Reviewer Routes */}
                   <Route 
                     path="/reviews" 
