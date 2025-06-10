@@ -1,4 +1,4 @@
-// frontend/src/pages/events/EventsList.jsx - ADMIN VERSION WITH ATTENDEE MANAGEMENT
+// frontend/src/pages/events/EventsList.jsx - FIXED VERSION
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -40,6 +40,15 @@ const EventsList = () => {
     meetingLink: '',
     maxAttendees: ''
   });
+
+  // ✅ FIXED: Helper functions defined at component level
+  const isAdmin = () => {
+    return ['ADMIN', 'OPERATIONS', 'SALES'].includes(user?.role);
+  };
+
+  const canCreateEvents = () => {
+    return isAdmin();
+  };
 
   // Fetch events
   const { data: eventsResponse, isLoading, error } = useQuery(
@@ -237,14 +246,6 @@ const EventsList = () => {
     return event.rsvps.find(rsvp => rsvp.userId === user.id) || null;
   };
 
-  const isAdmin = () => {
-    return ['ADMIN', 'OPERATIONS', 'SALES'].includes(user?.role);
-  };
-
-  const canCreateEvents = () => {
-    return isAdmin();
-  };
-
   const getAttendeesByStatus = (event) => {
     if (!event?.rsvps) return { attending: [], maybe: [], declined: [] };
     
@@ -255,6 +256,7 @@ const EventsList = () => {
     };
   };
 
+  // ✅ FIXED: RSVPModal component moved inside main component
   const RSVPModal = ({ event, onClose }) => {
     const attendees = getAttendeesByStatus(event);
     
@@ -484,7 +486,7 @@ const EventsList = () => {
           )}
         </div>
 
-        {/* Create Event Form - Same as before */}
+        {/* Create Event Form */}
         {showCreateForm && (
           <div className="mb-6 bg-white p-6 rounded-lg shadow border">
             <div className="flex items-center justify-between mb-4">
@@ -832,23 +834,6 @@ const EventsList = () => {
             </div>
           </div>
         )}
-
-        {/* Debug info in development */}
-        {import.meta.env.DEV && (
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Debug Info</h4>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p>Events loaded: {events.length}</p>
-              <p>User ID: {user?.id}</p>
-              <p>User role: {user?.role}</p>
-              <p>Is Admin: {isAdmin().toString()}</p>
-              <p>Can create events: {canCreateEvents().toString()}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 };
 
 export default EventsList;
