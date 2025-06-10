@@ -1,3 +1,5 @@
+// backend/prisma/schema.prisma - UPDATED WITH PASSWORD RESET FIELDS
+
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
@@ -70,6 +72,11 @@ model User {
   phone         String?
   parentEmail   String?  @map("parent_email") // For students
   isActive      Boolean  @default(true) @map("is_active")
+  
+  // ✅ NEW: Password Reset Fields
+  resetPasswordToken   String?   @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+  
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -157,6 +164,7 @@ model FileAttachment {
 
   @@map("file_attachments")
 }
+
 model EditorAssignment {
   id         String    @id @default(cuid())
   studentId  String    @map("student_id")
