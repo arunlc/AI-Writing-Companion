@@ -1,4 +1,4 @@
-# render.yaml - Render deployment configuration
+# render.yaml - Updated with React Router fix
 # Place this file in the root of your repository
 
 services:
@@ -52,6 +52,7 @@ services:
         - backend/**
         - docs/**
         - README.md
+    # ✅ CRITICAL FIX: Add routes configuration for React Router
     routes:
       - type: rewrite
         source: /*
